@@ -175,14 +175,11 @@ Gols 1.5/3.5, 1º tempo, 2º tempo e chance dupla **não** têm odd histórica g
 | `gerar_site.py` / `web/painel.html` | Gera o site do celular / o modelo da página | Não |
 | `.github/workflows/painel.yml` | A automação diária na nuvem | Não |
 | `.gitignore` | Impede que a chave e os caches subam para o GitHub | **Não, nunca** |
-| `comparacao.py` | Testa o método de comparação de casas no backtest (`python comparacao.py`, ~30 s) | Não |
 | `cache_backtest/` | As planilhas históricas com odds | Pode. O programa baixa de novo |
 | `backtest_apostas.csv` | As apostas simuladas no último backtest | Pode |
 | `config_footballdata.json` | Sua chave da API (**não compartilhe**) | Não. Se apagar, o programa pede a chave de novo |
 | `cache_historico/` | O histórico salvo | Pode. O programa baixa de novo |
 | `requirements.txt` | Lista das bibliotecas necessárias | Não |
-| `apostagol_dia_v1_poisson.py` | Backup da versão antiga | Pode |
-| `config.json`, `ligas_cache*.json`, `python apostagol_dia.py.txt` | Sobras da API antiga | Pode |
 
 ---
 
