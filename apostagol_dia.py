@@ -186,6 +186,8 @@ def proximas_datas(cliente, data_ref):
     """{codigo: [datas com jogo nos proximos 10 dias]} (horario de Brasilia)."""
     datas = {}
     for jogo in buscar_partidas(cliente, data_ref, data_ref + timedelta(days=10)):
+        if jogo.get("status") not in ("SCHEDULED", "TIMED"):
+            continue  # adiado/cancelado/ja jogado nao conta como "proxima data"
         datas.setdefault(jogo["competition"]["code"], set()).add(data_brasil(jogo).date().isoformat())
     return {codigo: sorted(ds) for codigo, ds in datas.items()}
 
