@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ApostaGol</title>
+<meta name="description" content="Painel diario do ApostaGol">
+<meta name="theme-color" content="#0f5132">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ApostaGol">
+<style>
+  :root {
+    --bg: #f3f5f4; --card: #ffffff; --texto: #16201a; --suave: #5a6a61; --linha: #dbe2dd;
+    --marca: #0f5132; --marca-texto: #ffffff; --realce: #e2f0e8;
+    --bom: #146c43; --bom-fundo: #e3f4ea; --alerta: #8a5a00; --alerta-fundo: #fff3d6;
+    --ruim: #a61b1b; --ruim-fundo: #fde7e7;
+    --raio: 14px; --sombra: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1411; --card: #17201b; --texto: #e6eee9; --suave: #9aaba1; --linha: #28332d;
+      --marca: #1f7a4f; --marca-texto: #ffffff; --realce: #1b3326;
+      --bom: #6fd6a0; --bom-fundo: #173325; --alerta: #f0c35a; --alerta-fundo: #3a2f14;
+      --ruim: #f39a9a; --ruim-fundo: #3b1c1c;
+      --sombra: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--texto);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  header {
+    background: var(--marca); color: var(--marca-texto);
+    padding: calc(14px + env(safe-area-inset-top)) 16px 12px;
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+  header p { margin: 2px 0 0; font-size: 12.5px; opacity: .85; }
+  .abas { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .aba {
+    flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--linha);
+    background: var(--card); color: var(--texto); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .aba[aria-selected="true"] { background: var(--marca); color: var(--marca-texto); border-color: var(--marca); }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 2px; scrollbar-width: none; }
+  .chip {
+    flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--linha);
+    background: var(--card); color: var(--suave); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--realce); color: var(--texto); border-color: var(--marca); }
+  details.nota { margin: 10px 16px 0; font-size: 13px; color: var(--suave); }
+  details.nota summary { cursor: pointer; }
+  main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
+  h2 { font-size: 15px; margin: 22px 0 2px; }
+  h2 + .sub { font-size: 12.5px; color: var(--suave); margin: 0 0 10px; }
+  .cartao {
+    background: var(--card); border-radius: var(--raio); box-shadow: var(--sombra);
+    padding: 12px 14px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .cartao.escolhido { border-color: var(--marca); }
+  .meta { grid-column: 1 / -1; font-size: 12px; color: var(--suave); display: flex; gap: 8px; }
+  .jogo { font-weight: 600; }
+  .cenario { font-size: 13.5px; color: var(--suave); }
+  .numeros { grid-row: 2 / 4; grid-column: 2; text-align: right; align-self: center; }
+  .numeros b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .numeros small { font-size: 12px; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .add {
+    grid-column: 1 / -1; justify-self: start; margin-top: 6px; padding: 5px 10px; border-radius: 8px;
+    border: 1px solid var(--linha); background: transparent; color: var(--texto); font: inherit; font-size: 12.5px;
+    cursor: pointer;
+  }
+  .cartao.escolhido .add { background: var(--marca); color: var(--marca-texto); border-color: var(--marca); }
+  .vazio { text-align: center; color: var(--suave); padding: 36px 8px; }
+  .vazio ul { text-align: left; display: inline-block; }
+  .combo {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: var(--card); border-top: 1px solid var(--linha); box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .combo .linha1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .combo b { font-variant-numeric: tabular-nums; }
+  .combo small { display: block; color: var(--suave); font-size: 12px; margin-top: 2px; }
+  .combo button { font: inherit; font-size: 13px; background: none; border: 0; color: var(--suave); text-decoration: underline; cursor: pointer; }
+  .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 10; }
+  .folha {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; max-height: 92vh; overflow-y: auto;
+    background: var(--bg); border-radius: 18px 18px 0 0;
+    padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto;
+  }
+  .folha h3 { margin: 0 32px 2px 0; font-size: 17px; }
+  .folha .sub { color: var(--suave); font-size: 13px; margin: 0 0 12px; }
+  .fechar {
+    position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%;
+    border: 0; background: var(--card); color: var(--texto); font-size: 20px; cursor: pointer;
+  }
+  .caixa { background: var(--card); border-radius: var(--raio); padding: 12px 14px; margin-bottom: 12px; box-shadow: var(--sombra); }
+  .caixa h4 { margin: 0 0 8px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--suave); margin: 8px 0 4px; }
+  input, select {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--linha);
+    background: var(--bg); color: var(--texto); font: inherit; font-size: 16px;
+  }
+  .duas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  input, select { min-width: 0; }
+  .folha h3, .jogo { overflow-wrap: anywhere; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--texto); font-size: 14px; }
+  .check input { width: 20px; height: 20px; }
+  .calcular {
+    width: 100%; padding: 13px; border-radius: 12px; border: 0; background: var(--marca); color: var(--marca-texto);
+    font: inherit; font-weight: 700; font-size: 16px; cursor: pointer;
+  }
+  .resultado dl, dl.resultado { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; }
+  .resultado dt { color: var(--suave); }
+  .resultado dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .estrelas { font-size: 20px; letter-spacing: 2px; color: var(--alerta); }
+  .aviso { border-radius: 10px; padding: 9px 11px; margin-top: 10px; font-size: 13.5px; }
+  .aviso.bom { background: var(--bom-fundo); color: var(--bom); }
+  .aviso.alerta { background: var(--alerta-fundo); color: var(--alerta); }
+  .aviso.ruim { background: var(--ruim-fundo); color: var(--ruim); }
+  .rodape { color: var(--suave); font-size: 12px; text-align: center; margin: 24px 0 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ApostaGol</h1>
+  <p id="atualizado"></p>
+</header>
+<div class="abas" role="tablist" id="abas"></div>
+<div class="chips" id="chips"></div>
+<details class="nota">
+  <summary>Como ler o painel</summary>
+  <p><b>Chance</b>: calculada pelo modelo<span id="txt-calib"></span>. <b>Odd justa</b> = 1 / chance: se a casa
+  pagar <b>acima</b> dela, o cenario esta bem pago. Na pratica a casa quase sempre paga um pouco abaixo (a margem dela).</p>
+  <p>Toque num cenario para <b>conferir a odd real</b>. Use <b>+ combinada</b> para montar uma combinada de ate 3 jogos.</p>
+  <p>Leitura organizada dos dados, nao garantia de resultado. Aposte so o que pode perder.</p>
+</details>
+<main id="conteudo"></main>
+<div class="combo" id="combo" hidden></div>
+<div class="fundo" id="fundo" hidden></div>
+<section class="folha" id="folha" hidden role="dialog" aria-modal="true" aria-labelledby="folha-titulo"></section>
+
+<script>
+const DADOS = /*__DADOS__*/null;
+const CFG = DADOS.config;
+const MAX_COMBO = 3;
+let diaAtual = 0, ligaFiltro = null;
+const combo = new Map();
+
+// ---------- utilidades ----------
+function el(tag, attrs, ...filhos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const f of filhos.flat()) if (f !== null && f !== undefined && f !== false) e.append(f);
+  return e;
+}
+const pct = (x, casas = 1) => (x * 100).toFixed(casas) + "%";
+const dataBR = iso => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+const lerNumero = txt => { const v = parseFloat(String(txt).trim().replace(",", ".")); return isFinite(v) ? v : null; };
+function guardar(chave, valor) { try { localStorage.setItem(chave, valor); } catch (e) {} }
+function ler(chave) { try { return localStorage.getItem(chave); } catch (e) { return null; } }
+
+// ---------- contas (as mesmas do apostagol_dia.py) ----------
+function poisson(lam, n) {
+  const p = [Math.exp(-lam)];
+  for (let k = 1; k < n; k++) p.push(p[k - 1] * lam / k);
+  return p;
+}
+function grade(lc, lf, rho) {   // grade_dixon_coles
+  rho = Math.min(Math.max(rho, -1 / lc, -1 / lf), 1 / (lc * lf), 1);
+  const n = CFG.max_gols + 1, pc = poisson(lc, n), pf = poisson(lf, n);
+  const m = pc.map(a => pf.map(b => a * b));
+  m[0][0] *= 1 - rho * lc * lf; m[1][0] *= 1 + rho * lf; m[0][1] *= 1 + rho * lc; m[1][1] *= 1 - rho;
+  let total = 0;
+  for (const linha of m) for (let j = 0; j < n; j++) { linha[j] = Math.max(linha[j], 0); total += linha[j]; }
+  return m.map(linha => linha.map(v => v / total));
+}
+function probMercado(c, ajCasa = 1, ajFora = 1) {   // prob_mercado
+  const g = grade(c.lam_casa * ajCasa, c.lam_fora * ajFora, c.rho);
+  let casa = 0, empate = 0, fora = 0, over = 0;
+  g.forEach((linha, i) => linha.forEach((v, j) => {
+    if (i > j) casa += v; else if (i === j) empate += v; else fora += v;
+    if (c.tipo === "gols" && i + j > c.linha) over += v;
+  }));
+  if (c.tipo === "gols") return over;
+  return { vitoria_casa: casa, empate, vitoria_fora: fora, dupla_1x: casa + empate,
+           dupla_x2: empate + fora, dupla_12: casa + fora }[c.campo];
+}
+function calibrar(c, p) {
+  if (!c.calib) return p;
+  p = Math.min(Math.max(p, 1e-4), 1 - 1e-4);
+  return 1 / (1 + Math.exp(-(c.calib[0] * Math.log(p / (1 - p)) + c.calib[1])));
+}
+function shin(odds) {   // remover_margem (metodo de Shin, igual a penaltyblog)
+  const inv = odds.map(o => 1 / o), s = inv.reduce((a, b) => a + b, 0);
+  if (s <= 1) return null;
+  const f = z => inv.map(p => (Math.sqrt(z * z + 4 * (1 - z) * p * p / s) - z) / (2 - 2 * z));
+  const erro = z => 1 - f(z).reduce((a, b) => a + b, 0);
+  let lo = 0, hi = 0.999999;
+  if (erro(lo) * erro(hi) > 0) return null;
+  for (let i = 0; i < 200; i++) { const mid = (lo + hi) / 2; if (erro(lo) * erro(mid) <= 0) hi = mid; else lo = mid; }
+  return { probs: f((lo + hi) / 2), margem: s - 1 };
+}
+function kelly(p, odd) {
+  const b = odd - 1; if (b <= 0) return 0;
+  return Math.min(Math.max(0, (b * p - (1 - p)) / b * CFG.kelly_fracao), CFG.kelly_teto);
+}
+function estrelas(edge) {
+  return edge < 0 ? 1 : edge < 0.03 ? 2 : edge < 0.07 ? 3 : edge < 0.12 ? 4 : edge < 0.18 ? 5 : 6;
+}
+
+// ---------- tela principal ----------
+function render() {
+  const dia = DADOS.dias[diaAtual];
+  document.getElementById("atualizado").textContent =
+    "Atualizado em " + DADOS.gerado_em + (DADOS.calibrado ? " - chances corrigidas pelo historico" : "");
+  document.getElementById("txt-calib").textContent = DADOS.calibrado ? " e corrigida pelo historico" : "";
+
+  const abas = document.getElementById("abas");
+  abas.replaceChildren(...DADOS.dias.map((d, i) => el("button", {
+    class: "aba", role: "tab", "aria-selected": String(i === diaAtual),
+    onclick: () => { diaAtual = i; ligaFiltro = null; render(); }
+  }, (i === 0 ? "Hoje " : "Amanha ") + dataBR(d.data))));
+
+  const chips = document.getElementById("chips");
+  chips.replaceChildren(...(dia.ligas.length > 1 ? [null, ...dia.ligas] : []).map(l => el("button", {
+    class: "chip", "aria-pressed": String(ligaFiltro === l),
+    onclick: () => { ligaFiltro = l; render(); }
+  }, l === null ? "Todas" : l)));
+
+  const main = document.getElementById("conteudo");
+  main.replaceChildren();
+  if (!dia.faixas.length) {
+    const vazio = el("div", { class: "vazio" }, el("p", {}, "Nenhum jogo das 12 competicoes nesse dia."));
+    const prox = Object.entries(DADOS.proximas || {});
+    if (prox.length) {
+      vazio.append(el("p", {}, "Proximas datas com jogo:"),
+        el("ul", {}, prox.map(([liga, datas]) => el("li", {}, (DADOS.ligas[liga] || liga) + ": " + datas.map(dataBR).join(", ")))));
+    }
+    main.append(vazio);
+  }
+  for (const fx of dia.faixas) {
+    const itens = fx.itens.filter(c => ligaFiltro === null || c.liga === ligaFiltro);
+    main.append(el("h2", {}, fx.nome.charAt(0) + fx.nome.slice(1).toLowerCase()),
+                el("p", { class: "sub" }, "odd justa " + fx.min.toFixed(2) + " a " + fx.max.toFixed(2)));
+    if (!itens.length) main.append(el("p", { class: "sub" }, "Nada nessa faixa."));
+    for (const c of itens) main.append(cartao(c));
+  }
+  main.append(el("p", { class: "rodape" }, "Leitura organizada dos dados, nao garantia de resultado."));
+  renderCombo();
+}
+function cartao(c) {
+  const escolhido = combo.has(c.id);
+  return el("article", { class: "cartao" + (escolhido ? " escolhido" : ""), onclick: () => abrirFolha(c) },
+    el("div", { class: "meta" }, el("span", {}, c.hora), el("span", {}, DADOS.ligas[c.liga] || c.liga)),
+    el("div", { class: "jogo" }, c.casa + " x " + c.fora),
+    el("div", { class: "cenario" }, c.rotulo),
+    el("div", { class: "numeros" }, el("b", {}, pct(c.prob)), el("small", {}, "odd justa " + (1 / c.prob).toFixed(2))),
+    el("button", { class: "add", onclick: ev => { ev.stopPropagation(); alternarCombo(c); } },
+      escolhido ? "Na combinada (tirar)" : "+ combinada"));
+}
+
+// ---------- combinada ----------
+function alternarCombo(c) {
+  if (combo.has(c.id)) combo.delete(c.id);
+  else if ([...combo.values()].some(x => x.jogo_id === c.jogo_id)) {
+    alert("Esse jogo ja esta na combinada. Cenarios do mesmo jogo dependem um do outro - escolha jogos diferentes.");
+    return;
+  } else if (combo.size >= MAX_COMBO) { alert("Maximo de " + MAX_COMBO + " jogos por combinada."); return; }
+  else combo.set(c.id, c);
+  render();
+}
+function renderCombo() {
+  const barra = document.getElementById("combo");
+  if (!combo.size) { barra.hidden = true; return; }
+  const chance = [...combo.values()].reduce((a, c) => a * c.prob, 1);
+  barra.hidden = false;
+  barra.replaceChildren(
+    el("div", { class: "linha1" },
+      el("span", {}, "Combinada (" + combo.size + "): ", el("b", {}, "chance " + pct(chance)), " - ",
+         el("b", {}, "odd justa " + (1 / chance).toFixed(2))),
+      el("button", { onclick: () => { combo.clear(); render(); } }, "limpar")),
+    el("small", {}, "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."));
+}
+
+// ---------- conferir odd ----------
+function fecharFolha() {
+  document.getElementById("folha").hidden = true;
+  document.getElementById("fundo").hidden = true;
+}
+function campoOdd(id, rotulo) {
+  return [el("label", { for: id }, rotulo),
+          el("input", { id, inputmode: "decimal", placeholder: "ex: 1.85", autocomplete: "off" })];
+}
+function seletorForma(id, time) {
+  const opcoes = [["1", "Otima"], ["2", "Boa"], ["3", "Neutra"], ["4", "Ruim"], ["5", "Pessima"]];
+  const s = el("select", { id }, opcoes.map(([v, t]) => el("option", { value: v }, t)));
+  s.value = "3";
+  return [el("label", { for: id }, "Forma de " + time), s];
+}
+function abrirFolha(c) {
+  const folha = document.getElementById("folha");
+  const dupla = c.tipo === "resultado" && c.campo.startsWith("dupla");
+  const campos = c.tipo === "gols"
+    ? [el("div", { class: "duas" },
+          el("div", {}, campoOdd("o-sim", "Odd 'mais de " + c.linha + "'")),
+          el("div", {}, campoOdd("o-nao", "Odd 'menos de " + c.linha + "'")))]
+    : [el("p", { class: "sub" }, "Para tirar a margem da casa, digite as 3 odds do resultado:"),
+       el("div", { class: "tres" },
+          el("div", {}, campoOdd("o-1", "Casa (1)")),
+          el("div", {}, campoOdd("o-x", "Empate (X)")),
+          el("div", {}, campoOdd("o-2", "Fora (2)"))),
+       dupla ? campoOdd("o-dupla", "Odd oferecida pra essa dupla chance") : null];
+
+  const banca = el("input", { id: "banca", inputmode: "decimal", placeholder: "opcional, ex: 200", value: ler("apostagol_banca") || "" });
+  folha.replaceChildren(
+    el("button", { class: "fechar", "aria-label": "Fechar", onclick: fecharFolha }, "×"),
+    el("h3", { id: "folha-titulo" }, c.casa + " x " + c.fora),
+    el("p", { class: "sub" }, c.rotulo + " - " + c.hora + " - " + (DADOS.ligas[c.liga] || c.liga)),
+    el("div", { class: "caixa" },
+      el("dl", { class: "resultado" },
+        el("dt", {}, "Chance calculada"), el("dd", {}, pct(c.prob)),
+        el("dt", {}, "Odd justa"), el("dd", {}, (1 / c.prob).toFixed(2)))),
+    el("div", { class: "caixa" },
+      el("h4", {}, "Odds na Bet365 / Betano"), ...campos,
+      el("label", { for: "banca" }, "Sua banca em R$ (pra mostrar a entrada em reais)"), banca),
+    el("details", { class: "caixa" },
+      el("summary", {}, "Ajustar forma e desfalques (opcional)"),
+      el("div", { class: "duas" }, el("div", {}, seletorForma("f-casa", c.casa)), el("div", {}, seletorForma("f-fora", c.fora))),
+      el("label", { class: "check" }, el("input", { type: "checkbox", id: "d-casa" }), c.casa + " tem desfalque importante"),
+      el("label", { class: "check" }, el("input", { type: "checkbox", id: "d-fora" }), c.fora + " tem desfalque importante")),
+    el("button", { class: "calcular", onclick: () => calcular(c) }, "Calcular"),
+    el("div", { id: "saida" }));
+  folha.hidden = false;
+  document.getElementById("fundo").hidden = false;
+  folha.scrollTop = 0;
+}
+function calcular(c) {
+  const saida = document.getElementById("saida");
+  const valor = id => lerNumero(document.getElementById(id).value);
+  const erro = txt => saida.replaceChildren(el("div", { class: "aviso ruim" }, txt));
+  const ajCasa = CFG.fator_forma[document.getElementById("f-casa").value] *
+                 (document.getElementById("d-casa").checked ? CFG.fator_desfalque : 1);
+  const ajFora = CFG.fator_forma[document.getElementById("f-fora").value] *
+                 (document.getElementById("d-fora").checked ? CFG.fator_desfalque : 1);
+  const prob = calibrar(c, probMercado(c, ajCasa, ajFora));
+
+  let odds, oddAposta, indice;
+  if (c.tipo === "gols") { odds = [valor("o-sim"), valor("o-nao")]; indice = 0; }
+  else { odds = [valor("o-1"), valor("o-x"), valor("o-2")]; }
+  if (odds.some(o => o === null || o <= 1)) return erro("Digite todas as odds (numeros maiores que 1, ex: 1.85).");
+  const r = shin(odds);
+  if (!r) return erro("Essas odds nao formam um mercado valido (confira se digitou certo).");
+
+  let justa;
+  if (c.tipo === "gols") { justa = r.probs[0]; oddAposta = odds[0]; }
+  else {
+    const [jc, je, jf] = r.probs;
+    const mapa = { vitoria_casa: [jc, odds[0]], empate: [je, odds[1]], vitoria_fora: [jf, odds[2]],
+                   dupla_1x: [jc + je, null], dupla_x2: [je + jf, null], dupla_12: [jc + jf, null] };
+    [justa, oddAposta] = mapa[c.campo];
+    if (oddAposta === null) {
+      oddAposta = valor("o-dupla");
+      if (oddAposta === null || oddAposta <= 1) return erro("Digite a odd oferecida pra dupla chance.");
+    }
+  }
+  const edge = prob - justa, nota = estrelas(edge);
+  const bancaTxt = document.getElementById("banca").value;
+  guardar("apostagol_banca", bancaTxt);
+  const bancaR = lerNumero(bancaTxt);
+
+  const avisos = [];
+  if (edge >= CFG.alerta_edge) avisos.push(["alerta", "Edge acima de " + Math.round(CFG.alerta_edge * 100) +
+    " pontos quase sempre e limitacao do modelo (lesao, time que mudou...), nao presente da casa."]);
+  if (oddAposta < CFG.odd_minima) avisos.push(["alerta", "Odd " + oddAposta.toFixed(2) + " abaixo de " + CFG.odd_minima.toFixed(2) + " (a odd minima original)."]);
+  else if (oddAposta > CFG.odd_maxima) avisos.push(["alerta", "Odd " + oddAposta.toFixed(2) + " acima do corredor " + CFG.odd_minima.toFixed(2) + "-" + CFG.odd_maxima.toFixed(2) + ". Confira com atencao."]);
+  else avisos.push(["bom", "Odd dentro do corredor " + CFG.odd_minima.toFixed(2) + "-" + CFG.odd_maxima.toFixed(2) + "."]);
+  if (edge > 0) {
+    const st = kelly(prob, oddAposta);
+    avisos.push([st > 0 ? "bom" : "alerta", "Entrada sugerida: " + pct(st, 2) + " da banca" +
+      (bancaR && st > 0 ? " = R$ " + (bancaR * st).toFixed(2) : "") + " (Kelly 25%, maximo 2%)."]);
+  } else {
+    avisos.push(["ruim", "A casa esta pagando abaixo do que o modelo calcula: sem valor nesse cenario."]);
+  }
+
+  saida.replaceChildren(el("div", { class: "caixa resultado" },
+    el("dl", {},
+      el("dt", {}, "Chance (com seus ajustes)"), el("dd", {}, pct(prob)),
+      el("dt", {}, "Margem da casa"), el("dd", {}, pct(r.margem)),
+      el("dt", {}, "Chance justa da casa"), el("dd", {}, pct(justa)),
+      el("dt", {}, "Edge"), el("dd", {}, (edge * 100).toFixed(1) + " p.p."),
+      el("dt", {}, "Nota"), el("dd", { class: "estrelas", "aria-label": nota + " de 6 estrelas" }, "★".repeat(nota) + "☆".repeat(6 - nota))),
+    avisos.map(([tipo, txt]) => el("div", { class: "aviso " + tipo }, txt)),
+    el("p", { class: "sub", style: "margin-top:10px" }, "Leitura organizada dos dados, nao garantia de resultado.")));
+  saida.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("fundo").addEventListener("click", fecharFolha);
+document.addEventListener("keydown", e => { if (e.key === "Escape") fecharFolha(); });
+if (!DADOS.dias[0].faixas.length && DADOS.dias[1] && DADOS.dias[1].faixas.length) diaAtual = 1;
+render();
+</script>
+</body>
+</html>

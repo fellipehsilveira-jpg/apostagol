@@ -1,0 +1,17 @@
+# NUNCA enviar chaves de API
+config_footballdata.json
+config.json
+
+# gerados/baixados automaticamente
+cache_historico/
+cache_backtest/
+site/
+backtest_apostas.csv
+__pycache__/
+*.pyc
+
+# sobras da API antiga e arquivos locais
+ligas_cache*.json
+times_bsa_cache.json
+python apostagol_dia.py.txt
+.claude/

@@ -1,0 +1,4 @@
+requests
+# versao fixa: o apostagol_dia.py contorna um bug da create_dixon_coles_grid dessa versao
+penaltyblog==1.12.2
+pillow

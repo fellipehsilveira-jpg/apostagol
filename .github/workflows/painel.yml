@@ -1,0 +1,79 @@
+# Roda o ApostaGol na nuvem todo dia e publica o painel no GitHub Pages.
+# A chave da API vem do Secret FOOTBALL_DATA_TOKEN (Settings -> Secrets and variables -> Actions).
+name: Painel diario
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 06:00 em Brasilia (o GitHub usa horario UTC e pode atrasar alguns minutos)
+  workflow_dispatch:       # botao "Run workflow" pra atualizar na hora
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  painel:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Instalar bibliotecas
+        run: pip install -r requirements.txt
+
+      - name: Historico da API (guardado entre execucoes, pra respeitar o limite de 10 req/min)
+        uses: actions/cache@v4
+        with:
+          path: cache_historico
+          key: historico-${{ github.run_id }}
+          restore-keys: historico-
+
+      - name: Mes atual
+        id: mes
+        run: echo "mes=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      - name: Calibracao do mes
+        id: calib
+        uses: actions/cache@v4
+        with:
+          path: calibracao.json
+          key: calibracao-${{ steps.mes.outputs.mes }}
+
+      - name: Planilhas do football-data.co.uk (so quando precisa recalibrar)
+        if: steps.calib.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: cache_backtest
+          key: backtest-${{ steps.mes.outputs.mes }}
+          restore-keys: backtest-
+
+      - name: Recalibrar as chances (1x por mes)
+        if: steps.calib.outputs.cache-hit != 'true'
+        continue-on-error: true   # se falhar, o site sai com a calibracao que esta no repositorio
+        run: python calibrar.py
+
+      - name: Gerar o site
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+        run: python gerar_site.py
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
