@@ -140,6 +140,19 @@ somem do painel sozinhos.
   As apostas ficam salvas **só no seu celular**, no navegador ou ícone em que você salvou. Use sempre
   o mesmo, e não apague os dados do navegador, senão elas somem. Os placares chegam com até ~2 horas
   de atraso.
+- **Comparar com as odds da casa (BBS):**
+  1. No site da casa, abra a lista de jogos, toque e segure no texto → **Selecionar tudo** → **Copiar**.
+  2. No ApostaGol, toque em **Colar odds da casa** → **Colar** (ou cole na caixa e toque em **Ler odds**).
+
+  O site encontra os mesmos jogos, mesmo com nomes diferentes, e mostra em cada cenário de resultado:
+  "Casa paga 2,00 · justa 1,72 → **bem paga +16%**" (verde) ou "abaixo" (vermelho). Na dupla chance,
+  a odd da casa é **estimada pelo 1X2** (a lista não mostra a dupla). O filtro **Só bem pagas** mostra
+  só esses. O "Conferir odd" já vem com o 1X2 preenchido, e a combinada mostra a **odd na casa**.
+  - A lista da casa só tem as odds de **resultado**. As de **gols** você vê dentro do jogo e digita
+    no Conferir odd.
+  - **⚠️ desconfie** aparece quando a diferença passa de 15%: quase sempre é limitação do modelo.
+  - O ApostaGol **não acessa o site da casa sozinho** (ele proíbe programas). Você copia, e o texto é
+    lido só no seu celular. A colagem vale para o dia; cole de novo quando as odds mudarem.
 - **Aba Brasil:** Brasileirão e jogos de times brasileiros na **Libertadores**. A Copa do Brasil e a
   Série B não estão liberadas no plano gratuito da API football-data.org.
 - **Atualizar na hora:** no GitHub, abra Actions → Painel diario → Run workflow.

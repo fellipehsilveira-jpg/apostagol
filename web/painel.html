@@ -144,6 +144,19 @@
   .apagar { background: none; border: 0; color: var(--suave); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; margin-top: 6px; padding: 0; }
   .saldo-bom { color: var(--bom); }
   .saldo-ruim { color: var(--ruim); }
+  .barra-casa { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .barra-casa .sub { margin: 0; font-size: 12.5px; color: var(--suave); }
+  .btn-casa { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--marca); background: var(--realce);
+    color: var(--texto); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .casa-linha { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+    margin-top: 6px; padding: 6px 9px; border-radius: 8px; font-size: 12.5px; }
+  .casa-linha.bem { background: var(--bom-fundo); color: var(--bom); }
+  .casa-linha.mal { background: var(--ruim-fundo); color: var(--ruim); }
+  .casa-linha.neutra { background: var(--realce); color: var(--suave); }
+  .casa-linha b { white-space: nowrap; }
+  textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--linha); background: var(--bg);
+    color: var(--texto); font: inherit; font-size: 15px; resize: vertical; }
+  .passos { margin: 0 0 12px; padding-left: 20px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -236,9 +249,150 @@ function estrelas(edge) {
   return edge < 0 ? 1 : edge < 0.03 ? 2 : edge < 0.07 ? 3 : edge < 0.12 ? 4 : edge < 0.18 ? 5 : 6;
 }
 
+// ---------- odds da casa (o usuario copia a lista da casa e cola aqui; nada e baixado sozinho) ----------
+const CHAVE_ODDS_CASA = "apostagol_odds_casa";
+const MESES = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 };
+let soBemPagas = false;
+
+function lerOddsCasa(texto) {
+  // formato copiado: mandante / visitante / odd casa / odd empate / odd fora / "11/out 16:00"
+  const L = texto.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const odd = s => /^\d+,\d{2}$/.test(s) ? parseFloat(s.replace(",", ".")) : null;
+  const dataRe = /^(\d{2})\/(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\s+(\d{2}:\d{2})$/i;
+  const ano0 = Number(DADOS.dias[0].data.slice(0, 4)), mes0 = Number(DADOS.dias[0].data.slice(5, 7));
+  const jogos = [];
+  for (let i = 0; i + 5 < L.length; i++) {
+    const o = [odd(L[i + 2]), odd(L[i + 3]), odd(L[i + 4])], m = L[i + 5].match(dataRe);
+    if (!m || o.some(x => x === null || x <= 1) || odd(L[i]) !== null || odd(L[i + 1]) !== null) continue;
+    const mes = MESES[m[2].toLowerCase()];
+    let ano = ano0;
+    if (mes0 === 12 && mes === 1) ano++; else if (mes0 === 1 && mes === 12) ano--;
+    jogos.push({ casa: L[i], fora: L[i + 1], data: ano + "-" + String(mes).padStart(2, "0") + "-" + m[1],
+                 hora: m[3], o1: o[0], oX: o[1], o2: o[2] });
+    i += 5;
+  }
+  return jogos;
+}
+function oddsCasaSalvas() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CHAVE_ODDS_CASA) || "null");
+    if (!d) return null;
+    d.jogos = d.jogos.filter(j => j.data >= DADOS.dias[0].data);   // leitura de dias passados nao vale mais
+    return d.jogos.length ? d : null;
+  } catch (e) { return null; }
+}
+
+// nomes diferentes entre as bases: "Atletico Mineiro MG" = "CA Mineiro", "Olympique Marselha" = "Olympique de Marseille"
+const PALAVRAS_IGNORADAS = new Set(("club clube futebol football calcio esporte esportivo associacao sociedade regatas " +
+  "afc cfc fbc ssc acf ogc rcd fbpa de da do das dos del la las los el y and the").split(" "));
+function palavrasTime(nome) {
+  return nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[^a-z0-9]+/)
+    .filter(p => p.length > 2 && !PALAVRAS_IGNORADAS.has(p));
+}
+function semelhanca(a, b) {
+  const A = palavrasTime(a), B = palavrasTime(b);
+  if (!A.length || !B.length) return 0;
+  const igual = (x, y) => x === y || (Math.min(x.length, y.length) >= 4 && (x.startsWith(y) || y.startsWith(x)));
+  const comuns = A.filter(x => B.some(y => igual(x, y))).length;
+  return comuns / Math.min(A.length, B.length);
+}
+const minutos = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+const cacheCasa = new Map();
+function acharJogoCasa(c) {
+  const lidas = oddsCasaSalvas();
+  if (!lidas) return null;
+  const chave = c.jogo_id + "|" + lidas.lido_em;
+  if (cacheCasa.has(chave)) return cacheCasa.get(chave);
+  let melhor = null, nota = 0;
+  for (const j of lidas.jogos) {
+    if (j.data !== c.data || Math.abs(minutos(j.hora) - minutos(c.hora)) > 30) continue;
+    const n = Math.min(semelhanca(j.casa, c.casa), semelhanca(j.fora, c.fora));
+    if (n >= 0.5 && n > nota) { melhor = j; nota = n; }
+  }
+  cacheCasa.set(chave, melhor);
+  return melhor;
+}
+function oddCasa(c) {
+  // odd da casa pra esse cenario: direta no 1X2; na dupla chance, estimada pelo 1X2 (a lista nao mostra a dupla)
+  if (c.tipo !== "resultado") return null;
+  const j = acharJogoCasa(c);
+  if (!j) return null;
+  const direta = { vitoria_casa: j.o1, empate: j.oX, vitoria_fora: j.o2 }[c.campo];
+  if (direta) return { odd: direta, estimada: false, jogo: j };
+  const par = { dupla_1x: [j.o1, j.oX], dupla_x2: [j.oX, j.o2], dupla_12: [j.o1, j.o2] }[c.campo];
+  return { odd: 1 / (1 / par[0] + 1 / par[1]), estimada: true, jogo: j };
+}
+const evCasa = c => { const o = oddCasa(c); return o ? c.prob * o.odd - 1 : null; };
+
+function linhaCasa(c) {
+  if (!oddsCasaSalvas()) return null;
+  if (c.tipo === "gols") return el("div", { class: "casa-linha neutra" }, "Odd de gols: veja no jogo da casa e use Conferir odd");
+  const o = oddCasa(c);
+  if (!o) return el("div", { class: "casa-linha neutra" }, "Jogo nao encontrado na lista colada");
+  const ev = c.prob * o.odd - 1;
+  return el("div", { class: "casa-linha " + (ev > 0 ? "bem" : "mal") },
+    el("span", {}, "Casa " + (o.estimada ? "≈ " : "paga ") + o.odd.toFixed(2).replace(".", ",") +
+      (o.estimada ? " (estimada pelo 1X2)" : "") + " · justa " + (1 / c.prob).toFixed(2).replace(".", ",")),
+    el("b", { title: ev > CFG.alerta_edge ? "Diferenca grande demais: quase sempre e limitacao do modelo" : "" },
+      (ev > 0 ? "bem paga +" : "abaixo ") + (ev * 100).toFixed(0) + "%" + (ev > CFG.alerta_edge ? " ⚠️ desconfie" : "")));
+}
+
+function barraCasa() {
+  const lidas = oddsCasaSalvas();
+  const hora = lidas ? new Date(lidas.lido_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  return el("div", { class: "barra-casa" },
+    el("button", { class: "btn-casa", onclick: abrirColar }, lidas ? "Colar de novo" : "Colar odds da casa"),
+    el("span", { class: "sub" }, lidas ? lidas.jogos.length + " jogos da casa lidos as " + hora : "Compare com as odds do site onde voce aposta"));
+}
+
+function abrirColar() {
+  const folha = document.getElementById("folha");
+  const caixa = el("textarea", { id: "texto-casa", rows: "6", placeholder: "Cole aqui o texto da lista de jogos da casa" });
+  const msg = el("div", {});
+  const ler = () => {
+    const jogos = lerOddsCasa(caixa.value);
+    if (!jogos.length) return msg.replaceChildren(el("div", { class: "aviso ruim" },
+      "Nao achei jogos nesse texto. Copie a pagina da lista de jogos inteira (selecionar tudo) e tente de novo."));
+    try { localStorage.setItem(CHAVE_ODDS_CASA, JSON.stringify({ lido_em: new Date().toISOString(), jogos })); }
+    catch (e) { return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Este navegador nao deixou salvar (modo anonimo?).")); }
+    cacheCasa.clear();
+    const nossos = new Map();
+    DADOS.dias.forEach(d => [...d.faixas, ...(d.faixas_brasil || [])].forEach(fx => fx.itens.forEach(c => nossos.set(c.jogo_id, c))));
+    const achados = [...nossos.values()].filter(c => acharJogoCasa(c)).length;
+    msg.replaceChildren(el("div", { class: "aviso bom" }, "Li " + jogos.length + " jogos da casa. " + achados + " de " +
+      nossos.size + " jogos do nosso painel foram encontrados."),
+      el("button", { class: "calcular", style: "margin-top:10px", onclick: () => { fecharFolha(); render(); } }, "Ver o painel"));
+  };
+  folha.replaceChildren(
+    el("button", { class: "fechar", "aria-label": "Fechar", onclick: fecharFolha }, "×"),
+    el("h3", { id: "folha-titulo" }, "Colar odds da casa"),
+    el("ol", { class: "passos" },
+      el("li", {}, "Abra a lista de jogos no site da casa."),
+      el("li", {}, "Toque e segure no texto, escolha Selecionar tudo e depois Copiar."),
+      el("li", {}, "Volte aqui e toque em Colar.")),
+    el("div", { class: "caixa" },
+      el("button", { class: "btn-casa", style: "width:100%;margin-bottom:8px", onclick: async () => {
+        try { caixa.value = await navigator.clipboard.readText(); ler(); }
+        catch (e) { msg.replaceChildren(el("div", { class: "aviso alerta" }, "O celular nao deixou ler a area de transferencia. Toque na caixa abaixo, cole e depois toque em Ler odds.")); }
+      } }, "Colar"),
+      caixa,
+      el("button", { class: "calcular", style: "margin-top:10px", onclick: ler }, "Ler odds")),
+    msg,
+    oddsCasaSalvas() ? el("button", { class: "apagar", onclick: () => {
+      try { localStorage.removeItem(CHAVE_ODDS_CASA); } catch (e) {}
+      cacheCasa.clear(); fecharFolha(); soBemPagas = false; render();
+    } }, "apagar as odds coladas") : null,
+    el("p", { class: "sub", style: "margin-top:12px" }, "O texto e lido so neste celular. O ApostaGol nao acessa o site da casa sozinho. " +
+      "A lista da casa traz so as odds de resultado (casa/empate/fora); as de gols continuam no Conferir odd."));
+  folha.hidden = false;
+  document.getElementById("fundo").hidden = false;
+  folha.scrollTop = 0;
+}
+
 // ---------- tela principal ----------
 const comecou = c => Date.parse(c.inicio) <= Date.now();
-const visiveis = itens => itens.filter(c => !comecou(c) && (ligaFiltro === null || c.liga === ligaFiltro));
+const visiveis = itens => itens.filter(c => !comecou(c) && (ligaFiltro === null || c.liga === ligaFiltro)
+  && (!soBemPagas || (evCasa(c) !== null && evCasa(c) > 0)));
 const tituloFaixa = nome => nome.charAt(0) + nome.slice(1).toLowerCase();
 const nomeDia = i => (i === 0 ? "Hoje " : "Amanha ") + dataBR(DADOS.dias[i].data);
 const brl = x => "R$ " + x.toFixed(2).replace(".", ",");
@@ -257,13 +411,18 @@ function render() {
   }, txt)));
 
   const ligas = typeof aba === "number" ? DADOS.dias[aba].ligas : [];
-  document.getElementById("chips").replaceChildren(...(ligas.length > 1 ? [null, ...ligas] : []).map(l => el("button", {
+  const chips = (ligas.length > 1 ? [null, ...ligas] : []).map(l => el("button", {
     class: "chip", "aria-pressed": String(ligaFiltro === l),
     onclick: () => { ligaFiltro = l; render(); }
-  }, l === null ? "Todas" : l)));
+  }, l === null ? "Todas" : l));
+  if (aba !== "minhas" && oddsCasaSalvas()) chips.unshift(el("button", {
+    class: "chip", "aria-pressed": String(soBemPagas), onclick: () => { soBemPagas = !soBemPagas; render(); }
+  }, "Só bem pagas"));
+  document.getElementById("chips").replaceChildren(...chips);
 
   const main = document.getElementById("conteudo");
   main.replaceChildren();
+  if (aba !== "minhas") main.append(barraCasa());
   if (aba === "minhas") renderMinhas(main, apostas);
   else if (aba === "brasil") renderBrasil(main);
   else renderDia(main, DADOS.dias[aba]);
@@ -316,6 +475,7 @@ function cartao(c) {
     el("div", { class: "jogo" }, c.casa + " x " + c.fora),
     el("div", { class: "cenario" }, c.rotulo),
     el("div", { class: "numeros" }, el("b", {}, pct(c.prob)), el("small", {}, "odd justa " + (1 / c.prob).toFixed(2))),
+    linhaCasa(c),
     el("button", { class: "add", onclick: ev => { ev.stopPropagation(); alternarCombo(c); } },
       escolhido ? "Na combinada (tirar)" : "+ combinada"));
 }
@@ -343,7 +503,13 @@ function renderCombo() {
         el("button", { onclick: () => { combo.clear(); render(); } }, "limpar"))),
     el("small", {}, combo.size >= 4
       ? "Com " + combo.size + " jogos a chance cai rapido: basta um errar. A margem da casa e cobrada em cada jogo."
-      : "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."));
+      : "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."),
+    oddCombinadaCasa() ? el("small", {}, el("b", {}, "Odd na casa ≈ " + oddCombinadaCasa().toFixed(2).replace(".", ",")),
+      " (multiplicando as odds da lista colada)") : null);
+}
+function oddCombinadaCasa() {
+  const odds = [...combo.values()].map(oddCasa);
+  return odds.length && odds.every(o => o) ? odds.reduce((a, o) => a * o.odd, 1) : null;
 }
 
 // ---------- minhas apostas (salvas so neste celular/navegador) ----------
@@ -365,7 +531,8 @@ function abrirSalvar() {
       el("small", {}, dataBR(p.data) + " " + p.hora + " - " + (DADOS.ligas[p.liga] || p.liga)))))),
     el("div", { class: "caixa" },
       el("label", { for: "s-odd" }, pernas.length === 1 ? "Odd que a casa pagou" : "Odd total da combinada na casa"),
-      el("input", { id: "s-odd", inputmode: "decimal", placeholder: "ex: " + (1 / chance).toFixed(2), autocomplete: "off" }),
+      el("input", { id: "s-odd", inputmode: "decimal", placeholder: "ex: " + (1 / chance).toFixed(2), autocomplete: "off",
+                    value: oddCombinadaCasa() ? oddCombinadaCasa().toFixed(2) : "" }),
       el("label", { for: "s-valor" }, "Valor apostado (R$)"),
       el("input", { id: "s-valor", inputmode: "decimal", placeholder: "ex: 10", value: ler("apostagol_ultimo_valor") || "" })),
     el("button", { class: "calcular", onclick: () => {
@@ -538,6 +705,12 @@ function abrirFolha(c) {
   folha.hidden = false;
   document.getElementById("fundo").hidden = false;
   folha.scrollTop = 0;
+  const jc = c.tipo === "resultado" ? acharJogoCasa(c) : null;
+  if (jc) {
+    document.getElementById("o-1").value = jc.o1.toFixed(2);
+    document.getElementById("o-x").value = jc.oX.toFixed(2);
+    document.getElementById("o-2").value = jc.o2.toFixed(2);
+  }
 }
 function calcular(c) {
   const saida = document.getElementById("saida");
