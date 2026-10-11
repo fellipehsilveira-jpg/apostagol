@@ -140,25 +140,27 @@ somem do painel sozinhos.
   As apostas ficam salvas **só no seu celular**, no navegador ou ícone em que você salvou. Use sempre
   o mesmo, e não apague os dados do navegador, senão elas somem. Os placares chegam com até ~2 horas
   de atraso.
-- **Comparar com as odds da casa (BBS), com um clique:**
-  - **Instalar (só 1 vez, no PC):** no ApostaGol, toque em **Odds da casa**, mostre a barra de
-    favoritos do Chrome (Ctrl+Shift+B) e **arraste o botão verde "⚽ ApostaGol"** até ela.
-  - **Usar todo dia:** abra a lista de jogos da BBS e clique no favorito **⚽ ApostaGol**. O ApostaGol
-    abre já com as odds lidas e comparadas.
-  - **No celular:** crie um favorito com o código do botão ("Não consegue arrastar? / No celular" mostra
-    e copia o código). Com a lista da BBS aberta, digite ApostaGol na barra de endereço e toque no favorito.
-  - **Se precisar:** em "Outra forma", ainda dá para colar o texto da lista manualmente.
+- **Comparar com as odds da BBS (botão ⚽ nos favoritos):**
+  - **Instalar (só 1 vez, no PC):** no ApostaGol, toque em **Como usar** (no quadro "Odds da BBS"),
+    mostre a barra de favoritos (Ctrl+Shift+B) e **arraste o botão "⚽ ApostaGol"** até ela. Se já
+    tinha o botão antigo, apague o antigo antes.
+  - **Todo dia:**
+    1. Na BBS, com a **lista de jogos** aberta, clique no ⚽. Chegam as odds de resultado de todos os
+       jogos.
+    2. Para **gols e dupla chance** de um jogo: abra o jogo na BBS (o "+471") e clique no ⚽ de novo.
+       Chegam gols no jogo, no 1º e no 2º tempo e a dupla chance daquele jogo.
+    3. O ApostaGol abre sempre **na mesma aba**, juntando tudo o que já foi lido.
+  - **Nos cartões** aparece uma linha discreta, "BBS 1,82 · justa 1,50", com uma etiqueta:
+    - **Valor +X%**: a BBS paga acima da odd justa, pelo nosso modelo;
+    - **Sem valor**: paga abaixo ou empata;
+    - **⚠ desconfie**: diferença acima de 15%, quase sempre é limitação do modelo.
 
-  O site encontra os mesmos jogos, mesmo com nomes diferentes, e mostra em cada cenário de resultado:
-  "Casa paga 2,00 · justa 1,72 → **bem paga +16%**" (verde) ou "abaixo" (vermelho). Na dupla chance,
-  a odd da casa é **estimada pelo 1X2** (a lista não mostra a dupla). O filtro **Só bem pagas** mostra
-  só esses. O "Conferir odd" já vem com o 1X2 preenchido, e a combinada mostra a **odd na casa**.
-  - A lista da casa só tem as odds de **resultado**. As de **gols** você vê dentro do jogo e digita
-    no Conferir odd.
-  - **⚠️ desconfie** aparece quando a diferença passa de 15%: quase sempre é limitação do modelo.
-  - O ApostaGol **não acessa o site da casa sozinho** (ele proíbe programas). O botão só lê a página
-    que **você** abriu, quando **você** clica, e o texto vai direto do seu navegador para o ApostaGol,
-    sem passar por servidor. A leitura vale para o dia; clique de novo quando as odds mudarem.
+    O filtro **Só com valor** mostra só os primeiros. O **Conferir odd** já vem com as odds da BBS
+    preenchidas, e a combinada mostra a **odd na casa**.
+  - **No celular:** em "Não consegue arrastar? / No celular" está o código do botão para criar o
+    favorito. Com a página da BBS aberta, digite ApostaGol na barra de endereço e toque no favorito.
+  - O ApostaGol **não acessa a BBS sozinho** (ela proíbe programas). O botão só lê a página que
+    **você** abriu, quando **você** clica, e nada passa por servidor. As odds lidas valem para o dia.
 - **Aba Brasil:** Brasileirão e jogos de times brasileiros na **Libertadores**. A Copa do Brasil e a
   Série B não estão liberadas no plano gratuito da API football-data.org.
 - **Atualizar na hora:** no GitHub, abra Actions → Painel diario → Run workflow.
