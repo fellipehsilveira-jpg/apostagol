@@ -151,12 +151,23 @@ somem do painel sozinhos.
        Chegam gols no jogo, no 1º e no 2º tempo e a dupla chance daquele jogo.
     3. O ApostaGol abre sempre **na mesma aba**, juntando tudo o que já foi lido.
   - **Nos cartões** aparece uma linha discreta, "BBS 1,82 · justa 1,50", com uma etiqueta:
-    - **Valor +X%**: a BBS paga acima da odd justa, pelo nosso modelo;
-    - **Sem valor**: paga abaixo ou empata;
-    - **⚠ desconfie**: diferença acima de 15%, quase sempre é limitação do modelo.
+    - **Valor +X%** (verde): a BBS paga acima da odd justa, pelo nosso modelo;
+    - **Abaixo −X%** (vermelho): paga abaixo;
+    - **Neutro** (cinza): perto de zero;
+    - **⚠ desconfie** (âmbar): diferença acima de 15%, quase sempre é limitação do modelo.
 
-    O filtro **Só com valor** mostra só os primeiros. O **Conferir odd** já vem com as odds da BBS
+    O filtro **Só com valor** mostra só os verdes. O **Conferir odd** já vem com as odds da BBS
     preenchidas, e a combinada mostra a **odd na casa**.
+  - **Odds de gols sem procurar o jogo:** depois de ler a lista, os cartões de gols mostram
+    **"abrir o jogo na BBS ↗"**. Clique, e na página do jogo clique no ⚽: as odds de gols aparecem.
+  - **Aba Ao vivo:** abra o **Ao Vivo** da BBS (há um botão na própria aba) e clique no ⚽. Para cada
+    jogo do nosso painel que estiver rolando aparecem:
+    - o minuto, o placar e as odds ao vivo da BBS;
+    - a **nossa chance ao vivo**: o modelo de antes do jogo, recalculado com o placar e o tempo que
+      falta. Ele não sabe de expulsões nem do ritmo do jogo.
+
+    Clique no ⚽ de novo para atualizar: depois de 10 minutos a leitura aparece como desatualizada.
+  - O ⚽ também funciona na **versão clássica (PC)** da BBS.
   - **No celular:** em "Não consegue arrastar? / No celular" está o código do botão para criar o
     favorito. Com a página da BBS aberta, digite ApostaGol na barra de endereço e toque no favorito.
   - O ApostaGol **não acessa a BBS sozinho** (ela proíbe programas). O botão só lê a página que

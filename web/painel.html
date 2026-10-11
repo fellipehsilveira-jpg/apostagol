@@ -186,6 +186,23 @@
   .barra-casa-txt span { font-size: 12.5px; color: var(--suave); }
   .ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--linha); flex: none; }
   .ponto.ligado { background: var(--bom); box-shadow: 0 0 0 4px var(--bom-fundo); }
+  .abas { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .aba { font-size: 12.5px; padding: 9px 2px; }
+  .pill.abaixo { background: var(--ruim-fundo); color: var(--ruim); }
+  .dica-casa a { color: var(--marca); font-weight: 700; }
+  .cartao.vivo { cursor: default; }
+  .relogio { color: var(--ruim); font-weight: 700; }
+  .placar { font-size: 16px; }
+  .linhas-vivo { grid-column: 1 / -1; margin-top: 8px; }
+  .linha-vivo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+    padding: 8px 0; border-top: 1px solid var(--linha); font-size: 13.5px; }
+  .linha-vivo > span:first-child { overflow-wrap: anywhere; }
+  .vivo-num small, .vivo-casa { color: var(--suave); font-size: 12.5px; }
+  .vivo-casa b { color: var(--texto); }
+  .vivo-casa .pill { margin-left: 6px; }
+  .vivo-casa { grid-column: 1 / -1; justify-self: end; }
+  a.btn-casa { text-decoration: none; white-space: nowrap; }
+  main > p.sub { font-size: 12.5px; color: var(--suave); margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -290,20 +307,32 @@ const fmtOdd = x => x.toFixed(2).replace(".", ",");
 let soBemPagas = false;
 
 function lerOddsCasa(texto) {
-  // LISTA de jogos: mandante / visitante / odd casa / odd empate / odd fora / "11/out 16:00"
+  // LISTA de jogos. Celular: mandante / visitante / 3 odds / "11/out 16:00"
+  //                 Versao classica (PC): "11/out" / "16:00" / mandante / visitante / 3 odds
   const L = linhasTexto(texto);
   const dataRe = /^(\d{2})\/(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\s+(\d{2}:\d{2})$/i;
+  const diaRe = /^(\d{2})\/(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)$/i;
   const ano0 = Number(DADOS.dias[0].data.slice(0, 4)), mes0 = Number(DADOS.dias[0].data.slice(5, 7));
-  const jogos = [];
-  for (let i = 0; i + 5 < L.length; i++) {
-    const o = [oddTexto(L[i + 2]), oddTexto(L[i + 3]), oddTexto(L[i + 4])], m = L[i + 5].match(dataRe);
-    if (!m || o.some(x => x === null || x <= 1) || oddTexto(L[i]) !== null || oddTexto(L[i + 1]) !== null) continue;
-    const mes = MESES[m[2].toLowerCase()];
+  const dataIso = (dia, mesTxt) => {
+    const mes = MESES[mesTxt.toLowerCase()];
     let ano = ano0;
     if (mes0 === 12 && mes === 1) ano++; else if (mes0 === 1 && mes === 12) ano--;
-    jogos.push({ casa: L[i], fora: L[i + 1], data: ano + "-" + String(mes).padStart(2, "0") + "-" + m[1],
-                 hora: m[3], o1: o[0], oX: o[1], o2: o[2] });
-    i += 5;
+    return ano + "-" + String(mes).padStart(2, "0") + "-" + dia;
+  };
+  const nome = s => s && oddTexto(s) === null && !/^\d{2}:\d{2}$/.test(s) && !diaRe.test(s);
+  const tresOdds = k => { const o = [oddTexto(L[k]), oddTexto(L[k + 1]), oddTexto(L[k + 2])]; return o.some(x => x === null || x <= 1) ? null : o; };
+  const jogos = [];
+  for (let i = 0; i + 5 < L.length; i++) {
+    let m = L[i + 5].match(dataRe), o = tresOdds(i + 2);
+    if (m && o && nome(L[i]) && nome(L[i + 1])) {
+      jogos.push({ casa: L[i], fora: L[i + 1], data: dataIso(m[1], m[2]), hora: m[3], o1: o[0], oX: o[1], o2: o[2] });
+      i += 5; continue;
+    }
+    m = L[i].match(diaRe); o = tresOdds(i + 4);
+    if (m && /^\d{2}:\d{2}$/.test(L[i + 1]) && o && nome(L[i + 2]) && nome(L[i + 3])) {
+      jogos.push({ casa: L[i + 2], fora: L[i + 3], data: dataIso(m[1], m[2]), hora: L[i + 1], o1: o[0], oX: o[1], o2: o[2] });
+      i += 6;
+    }
   }
   return jogos;
 }
@@ -417,28 +446,38 @@ function oddCasa(c) {
 const evCasa = c => { const o = oddCasa(c); return o ? c.prob * o.odd - 1 : null; };
 const LIMITE_VALOR = 0.01;   // abaixo de +1% e praticamente empate: nao chamamos de "valor"
 
+function pillValor(ev) {
+  // verde = valor, vermelho = abaixo, cinza = neutro (perto de zero), ambar = diferenca alta demais
+  const pct = (ev > 0 ? "+" : "−") + Math.abs(ev * 100).toFixed(0) + "%";
+  if (ev > CFG.alerta_edge) return el("span", { class: "pill alerta", title: "Diferenca grande demais: quase sempre e limitacao do modelo" }, "⚠ " + pct + " desconfie");
+  if (ev >= LIMITE_VALOR) return el("span", { class: "pill valor" }, "Valor " + pct);
+  if (ev <= -LIMITE_VALOR) return el("span", { class: "pill abaixo" }, "Abaixo " + pct);
+  return el("span", { class: "pill sem" }, "Neutro");
+}
 function linhaCasa(c) {
-  // cartao limpo: uma linha discreta "BBS 1,91 · justa 1,50 [Valor +27%]"; sem odd da casa, nada (ou a dica de gols)
+  // cartao limpo: uma linha "BBS 1,91 · justa 1,50 [etiqueta]"; sem odd de gols: atalho pro jogo na BBS
   if (!oddsCasaSalvas()) return null;
   const o = oddCasa(c);
   if (!o) {
-    return c.tipo === "gols" && acharJogoCasa(c)
-      ? el("div", { class: "dica-casa" }, "Gols: abra o jogo na BBS e clique no ⚽")
-      : null;
+    const j = c.tipo === "gols" ? acharJogoCasa(c) : null;
+    if (!j) return null;
+    return el("div", { class: "dica-casa" }, "Odds de gols: ",
+      j.link ? el("a", { href: j.link, target: "bbs", rel: "noopener", onclick: ev => ev.stopPropagation() }, "abrir o jogo na BBS ↗")
+             : "abra o jogo na BBS", " e clique no ⚽");
   }
-  const ev = c.prob * o.odd - 1, alto = ev > CFG.alerta_edge;
-  const pill = ev < LIMITE_VALOR ? ["sem", "Sem valor"] : alto ? ["alerta", "⚠ +" + (ev * 100).toFixed(0) + "% desconfie"]
-                                                     : ["valor", "Valor +" + (ev * 100).toFixed(0) + "%"];
   return el("div", { class: "comparacao" },
     el("span", { class: "odd-casa" }, "BBS ", el("b", {}, fmtOdd(o.odd)), o.estimada ? el("small", {}, " estimada") : null),
     el("span", { class: "odd-justa" }, "justa " + fmtOdd(1 / c.prob)),
-    el("span", { class: "pill " + pill[0], title: alto ? "Diferenca grande demais: quase sempre e limitacao do modelo" : "" }, pill[1]));
+    pillValor(c.prob * o.odd - 1));
 }
 
 // botao dos favoritos (bookmarklet): o usuario clica com a pagina da BBS aberta (lista OU um jogo).
 // O texto vai depois do "#" (nao e enviado a servidor) e a aba "apostagol" e reaproveitada a cada clique.
-const BOOKMARKLET = "javascript:(()=>{window.open('" + location.origin + location.pathname +
-  "#t='+Date.now()+'&casa='+encodeURIComponent(document.body.innerText),'apostagol')})()";
+const BOOKMARKLET = "javascript:(()=>{var l=[].map.call(document.querySelectorAll('[onclick*=\"Apostas.aspx\"]'),function(e){" +
+  "var m=e.getAttribute('onclick').match(/'([^']*Apostas\\.aspx[^']*)'/);" +
+  "return m?[e.innerText.split(/\\s*\\n\\s*/).filter(Boolean).slice(0,2),new URL(m[1],location.href).href]:null}).filter(Boolean);" +
+  "window.open('" + location.origin + location.pathname + "#t='+Date.now()+'&links='+encodeURIComponent(JSON.stringify(l))" +
+  "+'&casa='+encodeURIComponent(document.body.innerText),'apostagol')})()";
 let avisoCasa = null;
 
 function contarEncontrados() {
@@ -449,12 +488,24 @@ function contarEncontrados() {
 function processarLinkDaCasa() {
   const m = location.hash.match(/[#&]casa=([\s\S]*)$/);
   if (!m) return;
-  let texto = "";
+  let texto = "", links = [];
   try { texto = decodeURIComponent(m[1]); } catch (e) {}
+  const ml = location.hash.match(/[#&]links=([^&]*)/);
+  try { links = ml ? JSON.parse(decodeURIComponent(ml[1])) : []; } catch (e) {}
   history.replaceState(null, "", location.pathname + location.search);   // limpa o texto da barra de endereco
+  const falhaSalvar = { tipo: "ruim", texto: "Este navegador nao deixou salvar as odds (modo anonimo?)." };
+
+  const vivo = lerAoVivoCasa(texto);
+  if (vivo) {
+    try { localStorage.setItem(CHAVE_AOVIVO, JSON.stringify({ lido_em: new Date().toISOString(), jogos: vivo })); }
+    catch (e) { avisoCasa = falhaSalvar; return; }
+    aba = "aovivo";
+    avisoCasa = { tipo: "bom", texto: "Ao vivo da BBS lido: " + vivo.length + " jogos rolando." };
+    return;
+  }
   const jogo = lerJogoCasa(texto);
   if (jogo) {
-    if (!salvarOddsCasa([jogo])) { avisoCasa = { tipo: "ruim", texto: "Este navegador nao deixou salvar as odds (modo anonimo?)." }; return; }
+    if (!salvarOddsCasa([jogo])) { avisoCasa = falhaSalvar; return; }
     const achou = DADOS.dias.some(d => d.faixas.some(fx => fx.itens.some(c => notaPar(jogo, c) >= 0.5)));
     const tem = [jogo.mercados.total && "gols", jogo.mercados.primeiro_tempo && "1º tempo",
                  jogo.mercados.segundo_tempo && "2º tempo", jogo.mercados.dupla && "dupla chance"].filter(Boolean);
@@ -464,13 +515,17 @@ function processarLinkDaCasa() {
   }
   const jogos = lerOddsCasa(texto);
   if (!jogos.length) {
-    avisoCasa = { tipo: "ruim", texto: "Nao achei jogos nessa pagina. Na BBS, abra a lista de jogos (ou um jogo) e clique no ⚽ ApostaGol." };
+    avisoCasa = { tipo: "ruim", texto: "Nao achei jogos nessa pagina. Na BBS, abra a lista de jogos, um jogo ou o Ao Vivo e clique no ⚽ ApostaGol." };
     return;
   }
-  if (!salvarOddsCasa(jogos)) { avisoCasa = { tipo: "ruim", texto: "Este navegador nao deixou salvar as odds (modo anonimo?)." }; return; }
+  for (const j of jogos) {   // link direto de cada jogo (o botao novo manda junto)
+    const l = links.find(x => x[0][0] === j.casa && x[0][1] === j.fora);
+    if (l) j.link = l[1];
+  }
+  if (!salvarOddsCasa(jogos)) { avisoCasa = falhaSalvar; return; }
   const { achados, total } = contarEncontrados();
   avisoCasa = { tipo: "bom", bemPagas: true, texto: "Lista da BBS lida: " + jogos.length + " jogos, " + achados + " de " + total +
-    " do nosso painel. Para as odds de gols, abra o jogo na BBS e clique no ⚽ de novo." };
+    " do nosso painel. Odds de gols: use o atalho \"abrir o jogo na BBS\" no cartao e clique no ⚽ la." };
 }
 window.addEventListener("hashchange", () => { processarLinkDaCasa(); render(); });
 
@@ -550,6 +605,109 @@ function abrirColar() {
   folha.scrollTop = 0;
 }
 
+// ---------- ao vivo (pagina Ao Vivo da BBS + nosso modelo recalculado com placar e minuto) ----------
+const CHAVE_AOVIVO = "apostagol_aovivo";
+const BBS_AOVIVO = "https://bbsesportes.com.br/sistema_v2/usuarios/simulador/mobile/aovivo.aspx";
+
+function lerAoVivoCasa(texto) {
+  // pagina Ao Vivo: mandante / gols / visitante / gols / (3 odds, "--" ou nada) / "65′ - 2ª parte" ou "Intervalo"
+  const L = linhasTexto(texto);
+  if (!L.slice(0, 4).some(s => /^ao vivo$/i.test(s))) return null;
+  const inteiro = s => /^\d{1,2}$/.test(s);
+  const ehMinuto = s => /′/.test(s) || /^intervalo$/i.test(s);
+  const jogos = [];
+  for (let i = 0; i + 4 < L.length; i++) {
+    if (inteiro(L[i]) || !inteiro(L[i + 1]) || inteiro(L[i + 2]) || !inteiro(L[i + 3]) || oddTexto(L[i]) !== null) continue;
+    let k = i + 4;
+    const odds = [];
+    while (k < L.length && (oddTexto(L[k]) !== null || L[k] === "--")) odds.push(oddTexto(L[k++]));
+    if (k >= L.length || !ehMinuto(L[k])) continue;
+    const intervalo = /^intervalo$/i.test(L[k]);
+    const mm = L[k].match(/(\d{1,3})′/);
+    jogos.push({ casa: L[i], fora: L[i + 2], gc: Number(L[i + 1]), gf: Number(L[i + 3]),
+                 minuto: intervalo ? 45 : Math.min(90, mm ? Number(mm[1]) : 0), relogio: L[k],
+                 o1: odds.length === 3 && odds[0] > 1 ? odds[0] : null,
+                 oX: odds.length === 3 && odds[1] > 1 ? odds[1] : null,
+                 o2: odds.length === 3 && odds[2] > 1 ? odds[2] : null });
+    i = k;
+  }
+  return jogos;
+}
+function aoVivoSalvo() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CHAVE_AOVIVO) || "null");
+    return d && Date.now() - Date.parse(d.lido_em) < 3 * 3600e3 ? d : null;   // leitura com mais de 3h nao vale
+  } catch (e) { return null; }
+}
+function chancesAoVivo(mod, v) {
+  // gols que faltam ~ Poisson com os gols esperados do modelo proporcionais ao tempo que resta
+  const resta = Math.max(0, (90 - v.minuto) / 90);
+  const ph = poisson(mod.esp.total[0] * resta, 12), pa = poisson(mod.esp.total[1] * resta, 12);
+  let casa = 0, empate = 0, fora = 0, soma = 0;
+  const totais = new Array(30).fill(0);
+  ph.forEach((a, i) => pa.forEach((b, j) => {
+    const p = a * b, H = v.gc + i, A = v.gf + j;
+    soma += p;
+    if (H > A) casa += p; else if (H === A) empate += p; else fora += p;
+    totais[Math.min(H + A, 29)] += p;
+  }));
+  const maisDe = linha => totais.reduce((acc, p, t) => acc + (t > linha ? p : 0), 0) / soma;
+  return { casa: casa / soma, empate: empate / soma, fora: fora / soma, maisDe };
+}
+function linhaVivo(rotulo, chance, oddBbs) {
+  return el("div", { class: "linha-vivo" },
+    el("span", {}, rotulo),
+    el("span", { class: "vivo-num" }, el("b", {}, pct(chance)), el("small", {}, " justa " + (chance > 0.001 ? fmtOdd(1 / chance) : "-"))),
+    oddBbs ? el("span", { class: "vivo-casa" }, "BBS ", el("b", {}, fmtOdd(oddBbs)), " ", pillValor(chance * oddBbs - 1))
+           : el("span", { class: "vivo-casa sub" }, "sem odd da BBS"));
+}
+function renderAoVivo(main) {
+  const vivo = aoVivoSalvo();
+  const hora = vivo ? new Date(vivo.lido_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const velho = vivo && Date.now() - Date.parse(vivo.lido_em) > 10 * 60e3;
+  main.append(el("div", { class: "barra-casa" },
+    el("span", { class: "ponto " + (vivo && !velho ? "ligado" : "") }),
+    el("div", { class: "barra-casa-txt" },
+      el("b", {}, vivo ? "Placar e odds ao vivo da BBS" : "Ao vivo"),
+      el("span", {}, vivo ? "lidos as " + hora + (velho ? " · desatualizado: clique no ⚽ de novo" : "")
+                          : "Abra o Ao Vivo da BBS e clique no ⚽ ApostaGol")),
+    el("a", { class: "btn-casa", href: BBS_AOVIVO, target: "bbs", rel: "noopener" }, "Ao Vivo da BBS ↗")));
+
+  const agora = Date.now();
+  const rolando = DADOS.dias[0].modelos.filter(m => Date.parse(m.inicio) <= agora && agora - Date.parse(m.inicio) < 3 * 3600e3);
+  if (!rolando.length) {
+    main.append(el("div", { class: "vazio" }, el("p", {}, "Nenhum jogo do nosso painel rolando agora.")));
+    return;
+  }
+  for (const m of rolando) {
+    let v = null, nota = 0;
+    for (const j of (vivo ? vivo.jogos : [])) {
+      const n = Math.min(semelhanca(j.casa, m.casa), semelhanca(j.fora, m.fora));
+      if (n >= 0.5 && n > nota) { v = j; nota = n; }
+    }
+    const caixa = el("div", { class: "cartao vivo" },
+      el("div", { class: "meta" }, v ? el("span", { class: "relogio" }, "● " + v.relogio) : el("span", {}, "comecou as " + m.hora),
+        el("span", {}, DADOS.ligas[m.liga] || m.liga)),
+      el("div", { class: "jogo placar" }, m.casa + (v ? "  " + v.gc + " x " + v.gf + "  " : " x ") + m.fora));
+    if (!v) {
+      caixa.append(el("div", { class: "dica-casa" }, "Sem placar ao vivo: abra o Ao Vivo da BBS e clique no ⚽."));
+    } else if (v.minuto >= 90) {
+      caixa.append(el("div", { class: "dica-casa" }, "Acréscimos: o jogo está no fim."));
+    } else {
+      const ch = chancesAoVivo(m, v), gols = v.gc + v.gf;
+      caixa.append(el("div", { class: "linhas-vivo" },
+        linhaVivo("Vitória " + m.casa, ch.casa, v.o1),
+        linhaVivo("Empate", ch.empate, v.oX),
+        linhaVivo("Vitória " + m.fora, ch.fora, v.o2),
+        linhaVivo("Mais de " + (gols + 0.5).toFixed(1).replace(".", ",") + " gols", ch.maisDe(gols + 0.5), null),
+        linhaVivo("Mais de " + (gols + 1.5).toFixed(1).replace(".", ",") + " gols", ch.maisDe(gols + 1.5), null)));
+    }
+    main.append(caixa);
+  }
+  main.append(el("p", { class: "sub" }, "Chance ao vivo = nosso modelo antes do jogo + placar e minuto (os gols que faltam sao proporcionais ao tempo que resta). " +
+    "Nao sabe de expulsoes nem do ritmo do jogo: use como guia."));
+}
+
 // ---------- tela principal ----------
 const comecou = c => Date.parse(c.inicio) <= Date.now();
 const visiveis = itens => itens.filter(c => !comecou(c) && (ligaFiltro === null || c.liga === ligaFiltro)
@@ -564,8 +722,8 @@ function render() {
   document.getElementById("txt-calib").textContent = DADOS.calibrado ? " e corrigida pelo historico" : "";
   const apostas = lerApostas();
 
-  const abas = [[0, nomeDia(0)], [1, nomeDia(1)], ["brasil", "Brasil"],
-                ["minhas", "Minhas apostas" + (apostas.length ? " (" + apostas.length + ")" : "")]];
+  const abas = [[0, nomeDia(0)], [1, nomeDia(1)], ["brasil", "Brasil"], ["aovivo", "Ao vivo"],
+                ["minhas", "Apostas" + (apostas.length ? " (" + apostas.length + ")" : "")]];
   document.getElementById("abas").replaceChildren(...abas.map(([id, txt]) => el("button", {
     class: "aba", role: "tab", "aria-selected": String(aba === id),
     onclick: () => { aba = id; ligaFiltro = null; render(); window.scrollTo(0, 0); }
@@ -576,15 +734,18 @@ function render() {
     class: "chip", "aria-pressed": String(ligaFiltro === l),
     onclick: () => { ligaFiltro = l; render(); }
   }, l === null ? "Todas" : l));
-  if (aba !== "minhas" && oddsCasaSalvas()) chips.unshift(el("button", {
+  if (typeof aba === "number" || aba === "brasil") if (oddsCasaSalvas()) chips.unshift(el("button", {
     class: "chip", "aria-pressed": String(soBemPagas), onclick: () => { soBemPagas = !soBemPagas; render(); }
   }, "Só com valor"));
   document.getElementById("chips").replaceChildren(...chips);
 
   const main = document.getElementById("conteudo");
   main.replaceChildren();
-  if (aba !== "minhas") main.append(barraCasa());
+  if (aba !== "minhas" && aba !== "aovivo") main.append(barraCasa());
+  else if (aba === "aovivo" && avisoCasa) main.append(el("div", { class: "aviso " + avisoCasa.tipo }, avisoCasa.texto, " ",
+    el("button", { class: "link", onclick: () => { avisoCasa = null; render(); } }, "ok")));
   if (aba === "minhas") renderMinhas(main, apostas);
+  else if (aba === "aovivo") renderAoVivo(main);
   else if (aba === "brasil") renderBrasil(main);
   else renderDia(main, DADOS.dias[aba]);
   main.append(el("p", { class: "rodape" }, "Leitura organizada dos dados, nao garantia de resultado."));

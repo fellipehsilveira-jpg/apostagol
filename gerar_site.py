@@ -63,18 +63,26 @@ def faixas_json(candidatos):
 
 def painel_do_dia(cliente, data_ref, brasileiros):
     print(f"\n=== Painel de {data_ref.isoformat()} ===")
-    jogos = ag.buscar_jogos_do_dia(cliente, data_ref)
+    jogos = ag.buscar_jogos_do_dia(cliente, data_ref, incluir_em_andamento=True)
     codigos = [codigo for codigo in ag.COMPETICOES if codigo in jogos]
-    faixas, faixas_brasil = [], []
+    faixas, faixas_brasil, modelos = [], [], {}
     if codigos:
-        candidatos = ag.calcular_candidatos(cliente, jogos, codigos)
+        todos = ag.calcular_candidatos(cliente, jogos, codigos)
+        # gols esperados de cada jogo (inclusive os que ja comecaram): a aba Ao vivo recalcula com o placar
+        for c in todos:
+            modelos.setdefault(str(c["jogo"]["id"]), {
+                "jogo_id": c["jogo"]["id"], "liga": c["competicao"], "casa": c["casa_nome"], "fora": c["fora_nome"],
+                "inicio": c["jogo"]["utcDate"], "hora": ag.data_brasil(c["jogo"]).strftime("%H:%M"),
+                "esp": {periodo: list(v) for periodo, v in c["esperados"].items()},
+            })
+        candidatos = [c for c in todos if c["jogo"].get("status") in ("SCHEDULED", "TIMED")]
         faixas = faixas_json(candidatos)
         do_brasil = [c for c in candidatos if c["competicao"] == "BSA"
                      or c["jogo"]["homeTeam"]["id"] in brasileiros or c["jogo"]["awayTeam"]["id"] in brasileiros]
         if do_brasil:
             faixas_brasil = faixas_json(do_brasil)
     return {"data": data_ref.isoformat(), "jogos": sum(len(v) for v in jogos.values()),
-            "ligas": codigos, "faixas": faixas, "faixas_brasil": faixas_brasil}
+            "ligas": codigos, "faixas": faixas, "faixas_brasil": faixas_brasil, "modelos": list(modelos.values())}
 
 
 def resultados_recentes(cliente, hoje):

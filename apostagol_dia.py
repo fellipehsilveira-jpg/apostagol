@@ -169,15 +169,17 @@ def buscar_partidas(cliente, data_ini, data_fim):
     return resp.json().get("matches", [])
 
 
-def buscar_jogos_do_dia(cliente, data_ref):
+def buscar_jogos_do_dia(cliente, data_ref, incluir_em_andamento=False):
     """Retorna {codigo_competicao: [jogos]} so com jogos ainda nao iniciados cuja
     data no horario de Brasilia e a data pedida (jogo 21h30 de Brasilia ja e o
-    dia seguinte em UTC, por isso busca dois dias e filtra aqui)."""
+    dia seguinte em UTC, por isso busca dois dias e filtra aqui).
+    incluir_em_andamento=True traz tambem os jogos rolando (pra aba Ao vivo do site)."""
+    aceitos = ("SCHEDULED", "TIMED") + (("IN_PLAY", "PAUSED") if incluir_em_andamento else ())
     por_comp = {}
     for jogo in buscar_partidas(cliente, data_ref, data_ref + timedelta(days=1)):
         if data_brasil(jogo).date() != data_ref:
             continue
-        if jogo.get("status") not in ("SCHEDULED", "TIMED"):
+        if jogo.get("status") not in aceitos:
             continue
         por_comp.setdefault(jogo["competition"]["code"], []).append(jogo)
     return por_comp
