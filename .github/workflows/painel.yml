@@ -4,7 +4,8 @@ name: Painel diario
 
 on:
   schedule:
-    - cron: "0 9 * * *"   # 06:00 em Brasilia (o GitHub usa horario UTC e pode atrasar alguns minutos)
+    - cron: "0 */2 * * *"   # a cada 2 horas (horario UTC; o GitHub pode atrasar alguns minutos):
+                             # atualiza o painel e os placares que conferem as apostas salvas
   workflow_dispatch:       # botao "Run workflow" pra atualizar na hora
 
 permissions:

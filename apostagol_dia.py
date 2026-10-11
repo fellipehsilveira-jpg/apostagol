@@ -1,7 +1,7 @@
 """
 ApostaGol - Scan diario de valor (football-data.org + penaltyblog)
 
-Competicoes: as 12 do plano gratuito do football-data.org. A cada execucao o
+Competicoes: as 13 do plano gratuito do football-data.org (inclui a Libertadores). A cada execucao o
 script mostra quantos jogos cada uma tem no dia e voce escolhe uma ou mais.
 
 Mercados analisados, todos calculados na mesma passada (sem chamadas extras):
@@ -61,6 +61,7 @@ COMPETICOES = {
     "DED": ("Eredivisie", False, 1),
     "PPL": ("Primeira Liga", False, 1),
     "CL": ("UEFA Champions League", False, 1),
+    "CLI": ("Copa Libertadores", False, 1),
     "WC": ("Copa do Mundo FIFA", True, 4),
     "EC": ("Eurocopa", True, 4),
 }
@@ -195,7 +196,7 @@ def proximas_datas(cliente, data_ref):
 def mostrar_proximas_datas(cliente, data_ref):
     datas = proximas_datas(cliente, data_ref)
     if not datas:
-        print("\nNenhuma das 12 competicoes tem jogo nos proximos 10 dias nessa base de dados "
+        print(f"\nNenhuma das {len(COMPETICOES)} competicoes tem jogo nos proximos 10 dias nessa base de dados "
               "(pode ser data FIFA / pausa de calendario).")
         return
     print("\nDatas com jogos nos proximos 10 dias (horario de Brasilia):")

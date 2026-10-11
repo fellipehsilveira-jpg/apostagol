@@ -27,14 +27,17 @@ COR_TEMA = "#0f5132"
 
 
 def cenario_para_json(c):
-    """So o necessario pra pagina mostrar o cenario e refazer as contas da 'Conferir odd'."""
+    """So o necessario pra pagina mostrar o cenario, refazer as contas da 'Conferir odd'
+    e conferir o resultado depois (minhas apostas)."""
     periodo = c["campo"] if c["tipo"] == "gols" else "total"
     lam_casa, lam_fora, rho = c["esperados"][periodo]
     return {
         "id": f"{c['jogo']['id']}-{ag.chave_mercado(c)}",
         "jogo_id": c["jogo"]["id"],
         "liga": c["competicao"],
+        "data": ag.data_brasil(c["jogo"]).date().isoformat(),
         "hora": ag.data_brasil(c["jogo"]).strftime("%H:%M"),
+        "inicio": c["jogo"]["utcDate"],  # a pagina esconde o cenario quando o jogo ja comecou
         "casa": c["casa_nome"], "fora": c["fora_nome"],
         "rotulo": c["rotulo"], "tipo": c["tipo"], "campo": c["campo"], "linha": c["linha"],
         "prob": round(c["prob"], 6),
@@ -43,18 +46,54 @@ def cenario_para_json(c):
     }
 
 
-def painel_do_dia(cliente, data_ref):
+def times_brasileiros(cliente, hoje):
+    """IDs dos times do Brasileirao (temporada atual e anterior), pra achar os brasileiros
+    em outras competicoes (ex: Libertadores). Usa o cache em disco do historico."""
+    ids = set()
+    for ano in (hoje.year, hoje.year - 1):
+        for p in ag.carregar_temporada(cliente, "BSA", ano):
+            ids.update((p["casa"], p["fora"]))
+    return ids
+
+
+def faixas_json(candidatos):
+    return [{"nome": nome, "min": odd_min, "max": odd_max, "itens": [cenario_para_json(c) for c in itens]}
+            for nome, odd_min, odd_max, itens in ag.montar_painel(candidatos)]
+
+
+def painel_do_dia(cliente, data_ref, brasileiros):
     print(f"\n=== Painel de {data_ref.isoformat()} ===")
     jogos = ag.buscar_jogos_do_dia(cliente, data_ref)
     codigos = [codigo for codigo in ag.COMPETICOES if codigo in jogos]
-    faixas = []
+    faixas, faixas_brasil = [], []
     if codigos:
         candidatos = ag.calcular_candidatos(cliente, jogos, codigos)
-        for nome, odd_min, odd_max, itens in ag.montar_painel(candidatos):
-            faixas.append({"nome": nome, "min": odd_min, "max": odd_max,
-                           "itens": [cenario_para_json(c) for c in itens]})
+        faixas = faixas_json(candidatos)
+        do_brasil = [c for c in candidatos if c["competicao"] == "BSA"
+                     or c["jogo"]["homeTeam"]["id"] in brasileiros or c["jogo"]["awayTeam"]["id"] in brasileiros]
+        if do_brasil:
+            faixas_brasil = faixas_json(do_brasil)
     return {"data": data_ref.isoformat(), "jogos": sum(len(v) for v in jogos.values()),
-            "ligas": codigos, "faixas": faixas}
+            "ligas": codigos, "faixas": faixas, "faixas_brasil": faixas_brasil}
+
+
+def resultados_recentes(cliente, hoje):
+    """Placar dos jogos dos ultimos dias, pra pagina conferir as apostas salvas.
+    {id do jogo: {"s": status, "ft": [casa, fora], "ht": [casa, fora]}}"""
+    saida = {}
+    # a API aceita no maximo 10 dias por consulta: 8 pra tras + hoje + amanha
+    for m in ag.buscar_partidas(cliente, hoje - timedelta(days=8), hoje + timedelta(days=1)):
+        if m.get("status") in ("SCHEDULED", "TIMED"):
+            continue
+        placar = m.get("score") or {}
+        ft = placar.get("regularTime") or placar.get("fullTime") or {}
+        ht = placar.get("halfTime") or {}
+        saida[str(m["id"])] = {
+            "s": m["status"],
+            "ft": [ft["home"], ft["away"]] if ft.get("home") is not None else None,
+            "ht": [ht["home"], ht["away"]] if ht.get("home") is not None else None,
+        }
+    return saida
 
 
 def gerar_icone(tamanho, caminho):
@@ -76,7 +115,8 @@ def main():
     hoje = date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else datetime.now(ag.FUSO_BRASIL).date()
     cliente = ag.ClienteAPI(ag.carregar_api_key())
 
-    dias = [painel_do_dia(cliente, hoje), painel_do_dia(cliente, hoje + timedelta(days=1))]
+    brasileiros = times_brasileiros(cliente, hoje)
+    dias = [painel_do_dia(cliente, hoje, brasileiros), painel_do_dia(cliente, hoje + timedelta(days=1), brasileiros)]
     proximas = {}
     if not any(d["faixas"] for d in dias):
         proximas = ag.proximas_datas(cliente, hoje)
@@ -85,6 +125,7 @@ def main():
         "gerado_em": datetime.now(ag.FUSO_BRASIL).strftime("%d/%m/%Y %H:%M"),
         "dias": dias,
         "proximas": proximas,
+        "resultados": resultados_recentes(cliente, hoje),
         "ligas": {codigo: info[0] for codigo, info in ag.COMPETICOES.items()},
         "calibrado": bool(ag.CALIBRACAO),
         "config": {

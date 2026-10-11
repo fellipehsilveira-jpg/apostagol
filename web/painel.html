@@ -125,6 +125,25 @@
   .aviso.alerta { background: var(--alerta-fundo); color: var(--alerta); }
   .aviso.ruim { background: var(--ruim-fundo); color: var(--ruim); }
   .rodape { color: var(--suave); font-size: 12px; text-align: center; margin: 24px 0 8px; }
+  .abas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 12px 12px 0; }
+  .aba { padding: 9px 4px; font-size: 13px; line-height: 1.2; }
+  h2.dia { font-size: 17px; margin-top: 26px; padding-bottom: 4px; border-bottom: 2px solid var(--marca); }
+  .combo .acoes { display: flex; gap: 12px; align-items: center; flex: none; }
+  .combo .salvar { text-decoration: none; background: var(--marca); color: var(--marca-texto); padding: 7px 12px; border-radius: 9px; font-weight: 700; }
+  .selo { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .selo.bom { background: var(--bom-fundo); color: var(--bom); }
+  .selo.ruim { background: var(--ruim-fundo); color: var(--ruim); }
+  .selo.alerta { background: var(--alerta-fundo); color: var(--alerta); }
+  .selo.neutro { background: var(--realce); color: var(--texto); }
+  .aposta-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .pernas { list-style: none; padding: 0; margin: 10px 0 0; }
+  .pernas li { padding: 8px 0; border-top: 1px solid var(--linha); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+  .pernas li > :not(.ic) { grid-column: 2; overflow-wrap: anywhere; }
+  .pernas .ic { grid-row: 1 / span 3; font-size: 16px; }
+  .pernas small { color: var(--suave); }
+  .apagar { background: none; border: 0; color: var(--suave); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; margin-top: 6px; padding: 0; }
+  .saldo-bom { color: var(--bom); }
+  .saldo-ruim { color: var(--ruim); }
 </style>
 </head>
 <body>
@@ -138,7 +157,7 @@
   <summary>Como ler o painel</summary>
   <p><b>Chance</b>: calculada pelo modelo<span id="txt-calib"></span>. <b>Odd justa</b> = 1 / chance: se a casa
   pagar <b>acima</b> dela, o cenario esta bem pago. Na pratica a casa quase sempre paga um pouco abaixo (a margem dela).</p>
-  <p>Toque num cenario para <b>conferir a odd real</b>. Use <b>+ combinada</b> para montar uma combinada de ate 3 jogos.</p>
+  <p>Toque num cenario para <b>conferir a odd real</b>. Use <b>+ combinada</b> para montar uma combinada com quantos jogos quiser e depois <b>Salvar aposta</b> para acompanhar em <b>Minhas apostas</b>. Jogos que ja comecaram somem do painel.</p>
   <p>Leitura organizada dos dados, nao garantia de resultado. Aposte so o que pode perder.</p>
 </details>
 <main id="conteudo"></main>
@@ -149,8 +168,7 @@
 <script>
 const DADOS = /*__DADOS__*/null;
 const CFG = DADOS.config;
-const MAX_COMBO = 3;
-let diaAtual = 0, ligaFiltro = null;
+let aba = 0, ligaFiltro = null;   // aba: 0 (hoje), 1 (amanha), "brasil" ou "minhas"
 const combo = new Map();
 
 // ---------- utilidades ----------
@@ -219,44 +237,77 @@ function estrelas(edge) {
 }
 
 // ---------- tela principal ----------
+const comecou = c => Date.parse(c.inicio) <= Date.now();
+const visiveis = itens => itens.filter(c => !comecou(c) && (ligaFiltro === null || c.liga === ligaFiltro));
+const tituloFaixa = nome => nome.charAt(0) + nome.slice(1).toLowerCase();
+const nomeDia = i => (i === 0 ? "Hoje " : "Amanha ") + dataBR(DADOS.dias[i].data);
+const brl = x => "R$ " + x.toFixed(2).replace(".", ",");
+
 function render() {
-  const dia = DADOS.dias[diaAtual];
   document.getElementById("atualizado").textContent =
     "Atualizado em " + DADOS.gerado_em + (DADOS.calibrado ? " - chances corrigidas pelo historico" : "");
   document.getElementById("txt-calib").textContent = DADOS.calibrado ? " e corrigida pelo historico" : "";
+  const apostas = lerApostas();
 
-  const abas = document.getElementById("abas");
-  abas.replaceChildren(...DADOS.dias.map((d, i) => el("button", {
-    class: "aba", role: "tab", "aria-selected": String(i === diaAtual),
-    onclick: () => { diaAtual = i; ligaFiltro = null; render(); }
-  }, (i === 0 ? "Hoje " : "Amanha ") + dataBR(d.data))));
+  const abas = [[0, nomeDia(0)], [1, nomeDia(1)], ["brasil", "Brasil"],
+                ["minhas", "Minhas apostas" + (apostas.length ? " (" + apostas.length + ")" : "")]];
+  document.getElementById("abas").replaceChildren(...abas.map(([id, txt]) => el("button", {
+    class: "aba", role: "tab", "aria-selected": String(aba === id),
+    onclick: () => { aba = id; ligaFiltro = null; render(); window.scrollTo(0, 0); }
+  }, txt)));
 
-  const chips = document.getElementById("chips");
-  chips.replaceChildren(...(dia.ligas.length > 1 ? [null, ...dia.ligas] : []).map(l => el("button", {
+  const ligas = typeof aba === "number" ? DADOS.dias[aba].ligas : [];
+  document.getElementById("chips").replaceChildren(...(ligas.length > 1 ? [null, ...ligas] : []).map(l => el("button", {
     class: "chip", "aria-pressed": String(ligaFiltro === l),
     onclick: () => { ligaFiltro = l; render(); }
   }, l === null ? "Todas" : l)));
 
   const main = document.getElementById("conteudo");
   main.replaceChildren();
+  if (aba === "minhas") renderMinhas(main, apostas);
+  else if (aba === "brasil") renderBrasil(main);
+  else renderDia(main, DADOS.dias[aba]);
+  main.append(el("p", { class: "rodape" }, "Leitura organizada dos dados, nao garantia de resultado."));
+  renderCombo();
+}
+function renderFaixas(main, faixas) {
+  let total = 0;
+  for (const fx of faixas) {
+    const itens = visiveis(fx.itens);
+    main.append(el("h2", {}, tituloFaixa(fx.nome)),
+                el("p", { class: "sub" }, "odd justa " + fx.min.toFixed(2) + " a " + fx.max.toFixed(2)));
+    if (!itens.length) main.append(el("p", { class: "sub" }, fx.itens.length ? "Os jogos dessa faixa ja comecaram." : "Nada nessa faixa."));
+    for (const c of itens) main.append(cartao(c));
+    total += itens.length;
+  }
+  return total;
+}
+function renderDia(main, dia) {
   if (!dia.faixas.length) {
-    const vazio = el("div", { class: "vazio" }, el("p", {}, "Nenhum jogo das 12 competicoes nesse dia."));
+    const vazio = el("div", { class: "vazio" }, el("p", {}, "Nenhum jogo das competicoes nesse dia."));
     const prox = Object.entries(DADOS.proximas || {});
     if (prox.length) {
       vazio.append(el("p", {}, "Proximas datas com jogo:"),
         el("ul", {}, prox.map(([liga, datas]) => el("li", {}, (DADOS.ligas[liga] || liga) + ": " + datas.map(dataBR).join(", ")))));
     }
     main.append(vazio);
+    return;
   }
-  for (const fx of dia.faixas) {
-    const itens = fx.itens.filter(c => ligaFiltro === null || c.liga === ligaFiltro);
-    main.append(el("h2", {}, fx.nome.charAt(0) + fx.nome.slice(1).toLowerCase()),
-                el("p", { class: "sub" }, "odd justa " + fx.min.toFixed(2) + " a " + fx.max.toFixed(2)));
-    if (!itens.length) main.append(el("p", { class: "sub" }, "Nada nessa faixa."));
-    for (const c of itens) main.append(cartao(c));
+  if (!renderFaixas(main, dia.faixas) && ligaFiltro === null) {
+    main.prepend(el("div", { class: "aviso alerta" }, "Todos os jogos desse dia ja comecaram. Veja a aba do dia seguinte."));
   }
-  main.append(el("p", { class: "rodape" }, "Leitura organizada dos dados, nao garantia de resultado."));
-  renderCombo();
+}
+function renderBrasil(main) {
+  main.append(el("p", { class: "sub", style: "margin-top:14px" },
+    "Brasileirao e jogos de times brasileiros na Libertadores. Copa do Brasil e Serie B nao estao liberadas no plano gratuito da API."));
+  let algum = false;
+  DADOS.dias.forEach((d, i) => {
+    if (!(d.faixas_brasil || []).length) return;
+    algum = true;
+    main.append(el("h2", { class: "dia" }, nomeDia(i)));
+    renderFaixas(main, d.faixas_brasil);
+  });
+  if (!algum) main.append(el("div", { class: "vazio" }, el("p", {}, "Nenhum jogo de time brasileiro hoje nem amanha.")));
 }
 function cartao(c) {
   const escolhido = combo.has(c.id);
@@ -275,8 +326,7 @@ function alternarCombo(c) {
   else if ([...combo.values()].some(x => x.jogo_id === c.jogo_id)) {
     alert("Esse jogo ja esta na combinada. Cenarios do mesmo jogo dependem um do outro - escolha jogos diferentes.");
     return;
-  } else if (combo.size >= MAX_COMBO) { alert("Maximo de " + MAX_COMBO + " jogos por combinada."); return; }
-  else combo.set(c.id, c);
+  } else combo.set(c.id, c);
   render();
 }
 function renderCombo() {
@@ -286,10 +336,155 @@ function renderCombo() {
   barra.hidden = false;
   barra.replaceChildren(
     el("div", { class: "linha1" },
-      el("span", {}, "Combinada (" + combo.size + "): ", el("b", {}, "chance " + pct(chance)), " - ",
-         el("b", {}, "odd justa " + (1 / chance).toFixed(2))),
-      el("button", { onclick: () => { combo.clear(); render(); } }, "limpar")),
-    el("small", {}, "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."));
+      el("span", {}, (combo.size === 1 ? "Simples: " : "Combinada (" + combo.size + "): "),
+         el("b", {}, "chance " + pct(chance)), " - ", el("b", {}, "odd justa " + (1 / chance).toFixed(2))),
+      el("span", { class: "acoes" },
+        el("button", { class: "salvar", onclick: abrirSalvar }, "Salvar aposta"),
+        el("button", { onclick: () => { combo.clear(); render(); } }, "limpar"))),
+    el("small", {}, combo.size >= 4
+      ? "Com " + combo.size + " jogos a chance cai rapido: basta um errar. A margem da casa e cobrada em cada jogo."
+      : "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."));
+}
+
+// ---------- minhas apostas (salvas so neste celular/navegador) ----------
+const CHAVE_APOSTAS = "apostagol_apostas";
+function lerApostas() { try { return JSON.parse(localStorage.getItem(CHAVE_APOSTAS) || "[]"); } catch (e) { return []; } }
+function gravarApostas(lista) { try { localStorage.setItem(CHAVE_APOSTAS, JSON.stringify(lista)); return true; } catch (e) { return false; } }
+
+function abrirSalvar() {
+  const pernas = [...combo.values()];
+  const chance = pernas.reduce((a, c) => a * c.prob, 1);
+  const folha = document.getElementById("folha");
+  const msg = el("div", {});
+  folha.replaceChildren(
+    el("button", { class: "fechar", "aria-label": "Fechar", onclick: fecharFolha }, "×"),
+    el("h3", { id: "folha-titulo" }, pernas.length === 1 ? "Salvar aposta simples" : "Salvar combinada de " + pernas.length),
+    el("p", { class: "sub" }, "Chance " + pct(chance) + " - odd justa " + (1 / chance).toFixed(2)),
+    el("div", { class: "caixa" }, el("ul", { class: "pernas" }, pernas.map(p => el("li", {},
+      el("span", { class: "ic" }, "⏳"), el("b", {}, p.casa + " x " + p.fora), el("span", {}, p.rotulo),
+      el("small", {}, dataBR(p.data) + " " + p.hora + " - " + (DADOS.ligas[p.liga] || p.liga)))))),
+    el("div", { class: "caixa" },
+      el("label", { for: "s-odd" }, pernas.length === 1 ? "Odd que a casa pagou" : "Odd total da combinada na casa"),
+      el("input", { id: "s-odd", inputmode: "decimal", placeholder: "ex: " + (1 / chance).toFixed(2), autocomplete: "off" }),
+      el("label", { for: "s-valor" }, "Valor apostado (R$)"),
+      el("input", { id: "s-valor", inputmode: "decimal", placeholder: "ex: 10", value: ler("apostagol_ultimo_valor") || "" })),
+    el("button", { class: "calcular", onclick: () => {
+      const odd = lerNumero(document.getElementById("s-odd").value);
+      const valor = lerNumero(document.getElementById("s-valor").value);
+      if (odd === null || odd <= 1) return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Digite a odd (numero maior que 1, ex: 1.85)."));
+      if (valor === null || valor <= 0) return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Digite o valor apostado."));
+      const lista = lerApostas();
+      lista.push({ id: Date.now().toString(36), criada: new Date().toISOString(), odd, valor, chance,
+        pernas: pernas.map(p => ({ jogo_id: p.jogo_id, data: p.data, hora: p.hora, inicio: p.inicio, liga: p.liga,
+          casa: p.casa, fora: p.fora, rotulo: p.rotulo, tipo: p.tipo, campo: p.campo, linha: p.linha, prob: p.prob, res: null })) });
+      if (!gravarApostas(lista)) return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Este navegador nao deixou salvar (modo anonimo?)."));
+      guardar("apostagol_ultimo_valor", String(valor));
+      combo.clear(); fecharFolha(); aba = "minhas"; render(); window.scrollTo(0, 0);
+    } }, "Salvar"),
+    msg);
+  folha.hidden = false;
+  document.getElementById("fundo").hidden = false;
+  folha.scrollTop = 0;
+}
+
+function acertou(p, ft, ht) {   // mesma regra do calibrar.py (aconteceu)
+  const [h, a] = ft;
+  if (p.tipo === "resultado") {
+    return { vitoria_casa: h > a, empate: h === a, vitoria_fora: h < a,
+             dupla_1x: h >= a, dupla_x2: h <= a, dupla_12: h !== a }[p.campo];
+  }
+  let gols;
+  if (p.campo === "total") gols = h + a;
+  else {
+    if (!ht || ht[0] > h || ht[1] > a) return null;
+    gols = p.campo === "primeiro_tempo" ? ht[0] + ht[1] : (h - ht[0]) + (a - ht[1]);
+  }
+  return gols > p.linha;
+}
+function conferirResultados(lista) {   // grava o resultado das pernas encerradas
+  let mudou = false;
+  for (const ap of lista) for (const p of ap.pernas) {
+    if (p.res) continue;
+    const r = (DADOS.resultados || {})[String(p.jogo_id)];
+    if (!r) continue;
+    if (r.s === "FINISHED" && r.ft) {
+      const ok = acertou(p, r.ft, r.ht);
+      if (ok !== null) { p.res = { ok, ft: r.ft, ht: r.ht }; mudou = true; }
+    } else if (r.s === "CANCELLED" || r.s === "AWARDED") { p.res = { anulada: true }; mudou = true; }
+  }
+  return mudou;
+}
+function situacaoPerna(p) {
+  if (p.res) return p.res.anulada ? "anulada" : (p.res.ok ? "ganhou" : "perdeu");
+  const r = (DADOS.resultados || {})[String(p.jogo_id)];
+  if (r && (r.s === "IN_PLAY" || r.s === "PAUSED")) return "ao vivo";
+  if (r && (r.s === "POSTPONED" || r.s === "SUSPENDED")) return "adiado";
+  return Date.parse(p.inicio) <= Date.now() ? "aguardando" : "pendente";
+}
+function situacaoAposta(ap) {
+  const s = ap.pernas.map(situacaoPerna);
+  if (s.includes("perdeu")) return "perdeu";
+  if (s.includes("anulada")) return "verificar";
+  if (s.every(x => x === "ganhou")) return "ganhou";
+  if (s.includes("ao vivo")) return "andamento";
+  return "pendente";
+}
+const ICONE = { ganhou: "✅", perdeu: "❌", anulada: "⚪", "ao vivo": "🔴", adiado: "⏸️", aguardando: "🕒", pendente: "⏳" };
+const TEXTO_PERNA = { ganhou: "acertou", perdeu: "errou", anulada: "jogo cancelado", "ao vivo": "ao vivo",
+                      adiado: "adiado", aguardando: "aguardando o placar (atualiza a cada ~2h)", pendente: "ainda nao comecou" };
+
+function renderMinhas(main, lista) {
+  if (conferirResultados(lista)) gravarApostas(lista);
+  if (!lista.length) {
+    main.append(el("div", { class: "vazio" }, el("p", {}, "Nenhuma aposta salva ainda."),
+      el("p", {}, "Toque em + combinada nos cenarios (1 cenario = aposta simples) e depois em Salvar aposta.")));
+    return;
+  }
+  let apostado = 0, retorno = 0, ganhas = 0, encerradas = 0, abertas = 0;
+  for (const ap of lista) {
+    const s = situacaoAposta(ap);
+    if (s === "ganhou" || s === "perdeu") {
+      encerradas++; apostado += ap.valor;
+      if (s === "ganhou") { ganhas++; retorno += ap.valor * ap.odd; }
+    } else abertas++;
+  }
+  const saldo = retorno - apostado;
+  main.append(el("div", { class: "caixa", style: "margin-top:14px" },
+    el("h4", {}, "Resumo das apostas encerradas"),
+    el("dl", { class: "resultado" },
+      el("dt", {}, "Apostado"), el("dd", {}, brl(apostado)),
+      el("dt", {}, "Retorno"), el("dd", {}, brl(retorno)),
+      el("dt", {}, "Saldo"), el("dd", { class: saldo >= 0 ? "saldo-bom" : "saldo-ruim" }, (saldo >= 0 ? "+" : "-") + brl(Math.abs(saldo))),
+      el("dt", {}, "Acertos"), el("dd", {}, ganhas + " de " + encerradas),
+      el("dt", {}, "Em aberto"), el("dd", {}, String(abertas)))));
+
+  for (const ap of [...lista].reverse()) {
+    const s = situacaoAposta(ap);
+    const selo = {
+      ganhou: ["bom", "Ganhou +" + brl(ap.valor * (ap.odd - 1))], perdeu: ["ruim", "Perdeu -" + brl(ap.valor)],
+      verificar: ["alerta", "Verificar na casa"], andamento: ["alerta", "Em andamento"], pendente: ["neutro", "Pendente"],
+    }[s];
+    const criada = new Date(ap.criada);
+    main.append(el("div", { class: "caixa" },
+      el("div", { class: "aposta-topo" },
+        el("b", {}, ap.pernas.length === 1 ? "Simples" : "Combinada de " + ap.pernas.length),
+        el("span", { class: "selo " + selo[0] }, selo[1])),
+      el("p", { class: "sub", style: "margin:4px 0 0" }, "Odd " + ap.odd.toFixed(2) + " - " + brl(ap.valor) +
+        " - salva em " + criada.toLocaleDateString("pt-BR") + " " + criada.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })),
+      el("ul", { class: "pernas" }, ap.pernas.map(p => {
+        const sp = situacaoPerna(p);
+        const r = p.res && p.res.ft ? p.res : (DADOS.resultados || {})[String(p.jogo_id)];
+        const placar = r && r.ft ? " - placar " + r.ft[0] + "x" + r.ft[1] + (r.ht ? " (1T " + r.ht[0] + "x" + r.ht[1] + ")" : "") : "";
+        return el("li", {}, el("span", { class: "ic", "aria-hidden": "true" }, ICONE[sp]),
+          el("b", {}, p.casa + " x " + p.fora), el("span", {}, p.rotulo),
+          el("small", {}, dataBR(p.data) + " " + p.hora + " - " + TEXTO_PERNA[sp] + placar));
+      })),
+      el("button", { class: "apagar", onclick: () => {
+        if (!confirm("Apagar essa aposta do historico?")) return;
+        gravarApostas(lerApostas().filter(x => x.id !== ap.id)); render();
+      } }, "apagar")));
+  }
+  main.append(el("p", { class: "sub" }, "Os placares sao atualizados a cada ~2 horas. As apostas ficam salvas so neste celular/navegador."));
 }
 
 // ---------- conferir odd ----------
@@ -406,7 +601,7 @@ function calcular(c) {
 
 document.getElementById("fundo").addEventListener("click", fecharFolha);
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharFolha(); });
-if (!DADOS.dias[0].faixas.length && DADOS.dias[1] && DADOS.dias[1].faixas.length) diaAtual = 1;
+if (!DADOS.dias[0].faixas.some(fx => visiveis(fx.itens).length) && DADOS.dias[1].faixas.length) aba = 1;
 render();
 </script>
 </body>

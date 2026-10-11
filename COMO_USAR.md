@@ -117,16 +117,31 @@ Exemplo: com banca de R$ 500 e stake de 1,50%, a aposta é de R$ 7,50.
 
 ## No celular
 
-Todo dia às 6h (horário de Brasília), o GitHub roda o programa sozinho, mesmo com o seu PC desligado, e
-publica o painel de **hoje e amanhã** no site do ApostaGol (o endereço fica em Settings → Pages
-do repositório).
+A cada 2 horas, o GitHub roda o programa sozinho, mesmo com o seu PC desligado. Ele publica o
+painel de **hoje e amanhã** no site do ApostaGol (o endereço fica em Settings → Pages do repositório)
+e atualiza os placares que conferem as suas apostas.
+
+O site tem 4 abas: **Hoje**, **Amanhã**, **Brasil** e **Minhas apostas**. Os jogos que já começaram
+somem do painel sozinhos.
 
 - **Virar "aplicativo":** abra o site no celular e escolha "Adicionar à tela inicial" (no Android,
   pelo menu ⋮ do Chrome; no iPhone, pelo botão Compartilhar do Safari).
 - **Conferir odd:** toque num cenário, digite as odds da Bet365/Betano e toque em Calcular. As contas
   são as mesmas do programa no PC. A banca que você digitar fica salva só no seu celular.
-- **Combinada:** toque em "+ combinada" em até 3 cenários de jogos diferentes. A barra de baixo mostra
-  a chance e a odd justa da combinada.
+- **Combinada:** toque em "+ combinada" em quantos cenários quiser, sempre de jogos diferentes (dois
+  palpites do mesmo jogo dependem um do outro, por isso são bloqueados). A barra de baixo mostra a
+  chance e a odd justa. Com 1 cenário, vira aposta simples.
+- **Minhas apostas:** na barra da combinada, toque em **Salvar aposta** e digite a odd que a casa pagou
+  e o valor apostado. Na aba Minhas apostas aparecem:
+  - cada jogo com ⏳ (não começou), 🔴 (ao vivo), ✅ (acertou), ❌ (errou) e o placar;
+  - a situação de cada aposta (ganhou/perdeu, com o valor);
+  - o resumo com apostado, retorno e **saldo**.
+
+  As apostas ficam salvas **só no seu celular**, no navegador ou ícone em que você salvou. Use sempre
+  o mesmo, e não apague os dados do navegador, senão elas somem. Os placares chegam com até ~2 horas
+  de atraso.
+- **Aba Brasil:** Brasileirão e jogos de times brasileiros na **Libertadores**. A Copa do Brasil e a
+  Série B não estão liberadas no plano gratuito da API football-data.org.
 - **Atualizar na hora:** no GitHub, abra Actions → Painel diario → Run workflow.
 - **Calibração:** é refeita sozinha uma vez por mês.
 - **Segurança:** a chave da API fica guardada nos Secrets do GitHub e nunca aparece no código nem no
