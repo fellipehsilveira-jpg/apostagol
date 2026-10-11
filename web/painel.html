@@ -157,6 +157,10 @@
   textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--linha); background: var(--bg);
     color: var(--texto); font: inherit; font-size: 15px; resize: vertical; }
   .passos { margin: 0 0 12px; padding-left: 20px; font-size: 14px; }
+  .bookmarklet { display: inline-block; padding: 10px 16px; border-radius: 10px; background: var(--marca);
+    color: var(--marca-texto); font-weight: 700; text-decoration: none; cursor: grab; }
+  .link { background: none; border: 0; padding: 0 0 0 6px; color: inherit; font: inherit; font-weight: 700;
+    text-decoration: underline; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -337,43 +341,98 @@ function linhaCasa(c) {
       (ev > 0 ? "bem paga +" : "abaixo ") + (ev * 100).toFixed(0) + "%" + (ev > CFG.alerta_edge ? " ⚠️ desconfie" : "")));
 }
 
+// botao dos favoritos (bookmarklet): o PROPRIO usuario clica nele com a lista da casa aberta; ele pega o
+// texto da tela e abre o ApostaGol. O texto vai depois do "#", entao nao e enviado a servidor nenhum.
+const BOOKMARKLET = "javascript:(()=>{window.open('" + location.origin + location.pathname +
+  "#casa='+encodeURIComponent(document.body.innerText),'_blank')})()";
+let avisoCasa = null;   // mensagem depois de ler as odds pelo botao dos favoritos
+
+function salvarOddsCasa(jogos) {
+  try { localStorage.setItem(CHAVE_ODDS_CASA, JSON.stringify({ lido_em: new Date().toISOString(), jogos })); }
+  catch (e) { return false; }
+  cacheCasa.clear();
+  return true;
+}
+function contarEncontrados() {
+  const nossos = new Map();
+  DADOS.dias.forEach(d => [...d.faixas, ...(d.faixas_brasil || [])].forEach(fx => fx.itens.forEach(c => nossos.set(c.jogo_id, c))));
+  return { achados: [...nossos.values()].filter(c => acharJogoCasa(c)).length, total: nossos.size };
+}
+function processarLinkDaCasa() {
+  if (!location.hash.startsWith("#casa=")) return;
+  let texto = "";
+  try { texto = decodeURIComponent(location.hash.slice(6)); } catch (e) {}
+  history.replaceState(null, "", location.pathname + location.search);   // limpa o texto da barra de endereco
+  const jogos = lerOddsCasa(texto);
+  if (!jogos.length) {
+    avisoCasa = { tipo: "ruim", texto: "Nao achei jogos nessa pagina. Abra a LISTA de jogos da casa e clique de novo no botao ⚽ ApostaGol." };
+    return;
+  }
+  if (!salvarOddsCasa(jogos)) { avisoCasa = { tipo: "ruim", texto: "Este navegador nao deixou salvar as odds (modo anonimo?)." }; return; }
+  const { achados, total } = contarEncontrados();
+  avisoCasa = { tipo: "bom", bemPagas: true,
+                texto: "Odds da casa lidas agora: " + jogos.length + " jogos · " + achados + " de " + total + " jogos do nosso painel encontrados." };
+}
+
 function barraCasa() {
   const lidas = oddsCasaSalvas();
   const hora = lidas ? new Date(lidas.lido_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
-  return el("div", { class: "barra-casa" },
-    el("button", { class: "btn-casa", onclick: abrirColar }, lidas ? "Colar de novo" : "Colar odds da casa"),
-    el("span", { class: "sub" }, lidas ? lidas.jogos.length + " jogos da casa lidos as " + hora : "Compare com as odds do site onde voce aposta"));
+  const barra = el("div", {},
+    avisoCasa ? el("div", { class: "aviso " + avisoCasa.tipo },
+      avisoCasa.texto, " ",
+      avisoCasa.bemPagas && !soBemPagas ? el("button", { class: "link", onclick: () => { soBemPagas = true; avisoCasa = null; render(); } }, "Ver só as bem pagas") : null,
+      el("button", { class: "link", onclick: () => { avisoCasa = null; render(); } }, "ok")) : null,
+    el("div", { class: "barra-casa" },
+      el("button", { class: "btn-casa", onclick: abrirColar }, "Odds da casa"),
+      el("span", { class: "sub" }, lidas ? lidas.jogos.length + " jogos da casa lidos as " + hora
+                                          : "Compare com as odds do site onde voce aposta")));
+  return barra;
 }
 
 function abrirColar() {
   const folha = document.getElementById("folha");
-  const caixa = el("textarea", { id: "texto-casa", rows: "6", placeholder: "Cole aqui o texto da lista de jogos da casa" });
+  const caixa = el("textarea", { id: "texto-casa", rows: "5", placeholder: "Cole aqui o texto da lista de jogos da casa" });
   const msg = el("div", {});
   const ler = () => {
     const jogos = lerOddsCasa(caixa.value);
     if (!jogos.length) return msg.replaceChildren(el("div", { class: "aviso ruim" },
       "Nao achei jogos nesse texto. Copie a pagina da lista de jogos inteira (selecionar tudo) e tente de novo."));
-    try { localStorage.setItem(CHAVE_ODDS_CASA, JSON.stringify({ lido_em: new Date().toISOString(), jogos })); }
-    catch (e) { return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Este navegador nao deixou salvar (modo anonimo?).")); }
-    cacheCasa.clear();
-    const nossos = new Map();
-    DADOS.dias.forEach(d => [...d.faixas, ...(d.faixas_brasil || [])].forEach(fx => fx.itens.forEach(c => nossos.set(c.jogo_id, c))));
-    const achados = [...nossos.values()].filter(c => acharJogoCasa(c)).length;
-    msg.replaceChildren(el("div", { class: "aviso bom" }, "Li " + jogos.length + " jogos da casa. " + achados + " de " +
-      nossos.size + " jogos do nosso painel foram encontrados."),
+    if (!salvarOddsCasa(jogos)) return msg.replaceChildren(el("div", { class: "aviso ruim" }, "Este navegador nao deixou salvar (modo anonimo?)."));
+    const { achados, total } = contarEncontrados();
+    msg.replaceChildren(el("div", { class: "aviso bom" }, "Li " + jogos.length + " jogos da casa. " + achados + " de " + total +
+      " jogos do nosso painel foram encontrados."),
       el("button", { class: "calcular", style: "margin-top:10px", onclick: () => { fecharFolha(); render(); } }, "Ver o painel"));
   };
-  folha.replaceChildren(
+  const copiado = el("span", { class: "sub" });
+  folha.replaceChildren(...[
     el("button", { class: "fechar", "aria-label": "Fechar", onclick: fecharFolha }, "×"),
-    el("h3", { id: "folha-titulo" }, "Colar odds da casa"),
-    el("ol", { class: "passos" },
-      el("li", {}, "Abra a lista de jogos no site da casa."),
-      el("li", {}, "Toque e segure no texto, escolha Selecionar tudo e depois Copiar."),
-      el("li", {}, "Volte aqui e toque em Colar.")),
+    el("h3", { id: "folha-titulo" }, "Odds da casa"),
+    el("p", { class: "sub" }, "Com o botao ⚽ ApostaGol nos favoritos, e um clique: abra a lista de jogos da casa, clique no botao e o ApostaGol abre ja comparando."),
     el("div", { class: "caixa" },
-      el("button", { class: "btn-casa", style: "width:100%;margin-bottom:8px", onclick: async () => {
+      el("h4", {}, "Instalar o botao (so 1 vez) - no PC"),
+      el("ol", { class: "passos" },
+        el("li", {}, "Mostre a barra de favoritos do Chrome: Ctrl + Shift + B."),
+        el("li", {}, "Arraste este botao verde ate a barra de favoritos:")),
+      el("a", { class: "bookmarklet", href: BOOKMARKLET, onclick: ev => { ev.preventDefault(); alert("Arraste o botao ate a barra de favoritos (nao precisa clicar aqui)."); } }, "⚽ ApostaGol"),
+      el("h4", { style: "margin-top:14px" }, "Usar todo dia"),
+      el("ol", { class: "passos" },
+        el("li", {}, "Abra a lista de jogos no site da casa."),
+        el("li", {}, "Clique no favorito ⚽ ApostaGol. Pronto: o ApostaGol abre com as odds comparadas."))),
+    el("details", { class: "caixa" },
+      el("summary", {}, "Nao consegue arrastar? / No celular"),
+      el("p", { class: "sub", style: "margin-top:8px" }, "Crie um favorito qualquer, edite e troque o endereco (URL) por este codigo:"),
+      el("button", { class: "btn-casa", style: "width:100%", onclick: async () => {
+        try { await navigator.clipboard.writeText(BOOKMARKLET); copiado.textContent = "Codigo copiado."; }
+        catch (e) { copiado.textContent = "Nao deu para copiar sozinho: selecione o codigo abaixo e copie."; }
+      } }, "Copiar codigo do botao"),
+      copiado,
+      el("textarea", { rows: "3", readonly: true, style: "margin-top:8px;font-size:12px" }, BOOKMARKLET),
+      el("p", { class: "sub", style: "margin-top:8px" }, "No celular (Chrome): com a lista da casa aberta, digite ApostaGol na barra de endereco e toque no favorito.")),
+    el("details", { class: "caixa" },
+      el("summary", {}, "Outra forma: colar o texto manualmente"),
+      el("button", { class: "btn-casa", style: "width:100%;margin:8px 0", onclick: async () => {
         try { caixa.value = await navigator.clipboard.readText(); ler(); }
-        catch (e) { msg.replaceChildren(el("div", { class: "aviso alerta" }, "O celular nao deixou ler a area de transferencia. Toque na caixa abaixo, cole e depois toque em Ler odds.")); }
+        catch (e) { msg.replaceChildren(el("div", { class: "aviso alerta" }, "O navegador nao deixou ler a area de transferencia. Cole na caixa e toque em Ler odds.")); }
       } }, "Colar"),
       caixa,
       el("button", { class: "calcular", style: "margin-top:10px", onclick: ler }, "Ler odds")),
@@ -381,9 +440,10 @@ function abrirColar() {
     oddsCasaSalvas() ? el("button", { class: "apagar", onclick: () => {
       try { localStorage.removeItem(CHAVE_ODDS_CASA); } catch (e) {}
       cacheCasa.clear(); fecharFolha(); soBemPagas = false; render();
-    } }, "apagar as odds coladas") : null,
-    el("p", { class: "sub", style: "margin-top:12px" }, "O texto e lido so neste celular. O ApostaGol nao acessa o site da casa sozinho. " +
-      "A lista da casa traz so as odds de resultado (casa/empate/fora); as de gols continuam no Conferir odd."));
+    } }, "apagar as odds da casa") : null,
+    el("p", { class: "sub", style: "margin-top:12px" }, "O ApostaGol nao acessa o site da casa sozinho: so le o que voce abriu, quando voce clica. " +
+      "A lista da casa traz so as odds de resultado (casa/empate/fora); as de gols continuam no Conferir odd."),
+  ].filter(Boolean));
   folha.hidden = false;
   document.getElementById("fundo").hidden = false;
   folha.scrollTop = 0;
@@ -774,6 +834,7 @@ function calcular(c) {
 
 document.getElementById("fundo").addEventListener("click", fecharFolha);
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharFolha(); });
+processarLinkDaCasa();
 if (!DADOS.dias[0].faixas.some(fx => visiveis(fx.itens).length) && DADOS.dias[1].faixas.length) aba = 1;
 render();
 </script>
