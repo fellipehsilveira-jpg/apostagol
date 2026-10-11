@@ -158,8 +158,25 @@ somem do painel sozinhos.
 
     O filtro **Só com valor** mostra só os verdes. O **Conferir odd** já vem com as odds da BBS
     preenchidas, e a combinada mostra a **odd na casa**.
-  - **Odds de gols sem procurar o jogo:** depois de ler a lista, os cartões de gols mostram
-    **"abrir o jogo na BBS ↗"**. Clique, e na página do jogo clique no ⚽: as odds de gols aparecem.
+  - **Estrelas (1 a 5)** em cada cartão com odd da BBS, ao lado da etiqueta. A nota usa o valor esperado
+    (chance × odd da BBS − 1):
+
+    | Estrelas | Quando |
+    |---|---|
+    | ★★★★★ | +5% ou mais **e** odd da BBS de 1,30 ou mais (bem acima do esperado, cotação boa) |
+    | ★★★★☆ | +1% a +5% (ou +5% ou mais com odd abaixo de 1,30) |
+    | ★★★☆☆ | entre −1% e +1% (preço justo) |
+    | ★★☆☆☆ | −10% a −1% |
+    | ★☆☆☆☆ | pior que −10% |
+
+    Os filtros **4★ ou mais** e **Ordenar por ★** ajudam a montar a combinada, e a barra da combinada
+    mostra a **média de estrelas**. O Conferir odd usa a mesma régua.
+  - **Fila de gols:** depois de ler a lista, o quadro verde **"Buscar odds de gols (N jogos)"** abre o
+    primeiro jogo direto na BBS. Clique no ⚽ lá, e o ApostaGol já mostra **"Próximo jogo …"**. Um clique
+    por jogo até completar.
+    - **Por que não preenche todos sozinho:** as odds de gols só existem dentro de cada jogo. Preencher
+      todos sem clicar exigiria um robô entrando em cada jogo da BBS, o que ela proíbe e pode bloquear
+      a sua conta.
   - **Aba Ao vivo:** abra o **Ao Vivo** da BBS (há um botão na própria aba) e clique no ⚽. Para cada
     jogo do nosso painel que estiver rolando aparecem:
     - o minuto, o placar e as odds ao vivo da BBS;

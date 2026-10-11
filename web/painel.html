@@ -203,6 +203,15 @@
   .vivo-casa { grid-column: 1 / -1; justify-self: end; }
   a.btn-casa { text-decoration: none; white-space: nowrap; }
   main > p.sub { font-size: 12.5px; color: var(--suave); margin-top: 14px; }
+  .nota-casa { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .nota-casa .pill { margin-left: 0; }
+  .estrelas-casa { color: #d4a017; letter-spacing: 1px; font-size: 14px; white-space: nowrap; }
+  .fila-gols { display: grid; gap: 2px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; text-decoration: none;
+    background: var(--marca); color: var(--marca-texto); }
+  .fila-gols span, .fila-gols small { opacity: .9; font-size: 12.5px; }
+  .fila-gols b { font-size: 15px; }
+  .fila-gols.pronto { background: var(--bom-fundo); color: var(--bom); font-weight: 700; font-size: 13.5px; }
+  @media (max-width: 420px) { .comparacao { flex-wrap: wrap; } .nota-casa { margin-left: 0; width: 100%; justify-content: space-between; } }
 </style>
 </head>
 <body>
@@ -291,9 +300,15 @@ function kelly(p, odd) {
   const b = odd - 1; if (b <= 0) return 0;
   return Math.min(Math.max(0, (b * p - (1 - p)) / b * CFG.kelly_fracao), CFG.kelly_teto);
 }
-function estrelas(edge) {
-  return edge < 0 ? 1 : edge < 0.03 ? 2 : edge < 0.07 ? 3 : edge < 0.12 ? 4 : edge < 0.18 ? 5 : 6;
+function estrelasCasa(ev, odd) {
+  // 5 = bem acima do esperado E com cotacao que vale a pena; 1 = bem abaixo
+  if (ev >= 0.05) return odd >= 1.30 ? 5 : 4;
+  if (ev >= 0.01) return 4;
+  if (ev > -0.01) return 3;
+  if (ev >= -0.10) return 2;
+  return 1;
 }
+const estrelasTxt = n => "★".repeat(n) + "☆".repeat(5 - n);
 
 // ---------- odds da casa (lidas da pagina que o PROPRIO usuario abriu; nada e buscado sozinho) ----------
 const CHAVE_ODDS_CASA = "apostagol_odds_casa";
@@ -468,7 +483,29 @@ function linhaCasa(c) {
   return el("div", { class: "comparacao" },
     el("span", { class: "odd-casa" }, "BBS ", el("b", {}, fmtOdd(o.odd)), o.estimada ? el("small", {}, " estimada") : null),
     el("span", { class: "odd-justa" }, "justa " + fmtOdd(1 / c.prob)),
-    pillValor(c.prob * o.odd - 1));
+    el("span", { class: "nota-casa" },
+      el("span", { class: "estrelas-casa", "aria-label": estrelasCasa(c.prob * o.odd - 1, o.odd) + " de 5 estrelas" },
+        estrelasTxt(estrelasCasa(c.prob * o.odd - 1, o.odd))),
+      pillValor(c.prob * o.odd - 1)));
+}
+function estrelasCenario(c) {
+  const o = oddCasa(c);
+  return o ? estrelasCasa(c.prob * o.odd - 1, o.odd) : null;
+}
+
+// fila de gols: jogos do painel com cartao de gols sem odd da BBS e com o link do jogo conhecido
+function filaGols() {
+  if (!oddsCasaSalvas()) return [];
+  const vistos = new Set(), fila = [];
+  const cartoes = DADOS.dias.flatMap(d => [...d.faixas, ...(d.faixas_brasil || [])].flatMap(fx => fx.itens))
+    .filter(c => c.tipo === "gols" && !comecou(c)).sort((a, b) => b.prob - a.prob);
+  for (const c of cartoes) {
+    const j = acharJogoCasa(c);
+    if (!j || !j.link || vistos.has(j.link) || (j.mercados && j.mercados.total)) continue;
+    vistos.add(j.link);
+    fila.push(j);
+  }
+  return fila;
 }
 
 // botao dos favoritos (bookmarklet): o usuario clica com a pagina da BBS aberta (lista OU um jogo).
@@ -536,7 +573,7 @@ function barraCasa() {
   return el("div", {},
     avisoCasa ? el("div", { class: "aviso " + avisoCasa.tipo },
       avisoCasa.texto, " ",
-      avisoCasa.bemPagas && !soBemPagas ? el("button", { class: "link", onclick: () => { soBemPagas = true; avisoCasa = null; render(); } }, "Ver só com valor") : null,
+      avisoCasa.bemPagas && !soBemPagas ? el("button", { class: "link", onclick: () => { soBemPagas = true; avisoCasa = null; render(); } }, "Ver só 4★ ou mais") : null,
       el("button", { class: "link", onclick: () => { avisoCasa = null; render(); } }, "ok")) : null,
     el("div", { class: "barra-casa" },
       el("span", { class: "ponto " + (lidas ? "ligado" : "") }),
@@ -544,7 +581,20 @@ function barraCasa() {
         el("b", {}, lidas ? "Odds da BBS carregadas" : "Odds da BBS"),
         el("span", {}, lidas ? lidas.jogos.length + " jogos · " + comGols + " com gols · lidas as " + hora
                              : "Clique no ⚽ ApostaGol com a BBS aberta")),
-      el("button", { class: "btn-casa", onclick: abrirColar }, lidas ? "Ajuda" : "Como usar")));
+      el("button", { class: "btn-casa", onclick: abrirColar }, lidas ? "Ajuda" : "Como usar")),
+    botaoFilaGols(comGols));
+}
+function botaoFilaGols(comGols) {
+  const fila = filaGols();
+  if (!oddsCasaSalvas()) return null;
+  if (!fila.length) {
+    return comGols ? el("div", { class: "fila-gols pronto" }, "✓ Odds de gols de todos os jogos do painel lidas") : null;
+  }
+  const j = fila[0];
+  return el("a", { class: "fila-gols", href: j.link, target: "bbs", rel: "noopener" },
+    el("span", {}, comGols ? "Próximo jogo para ler os gols:" : "Buscar odds de gols (" + fila.length + " jogos)"),
+    el("b", {}, j.casa + " x " + j.fora + " ↗"),
+    el("small", {}, "Abre o jogo na BBS: clique no ⚽ la" + (fila.length > 1 ? " · faltam " + fila.length : " · ultimo")));
 }
 
 function abrirColar() {
@@ -711,7 +761,8 @@ function renderAoVivo(main) {
 // ---------- tela principal ----------
 const comecou = c => Date.parse(c.inicio) <= Date.now();
 const visiveis = itens => itens.filter(c => !comecou(c) && (ligaFiltro === null || c.liga === ligaFiltro)
-  && (!soBemPagas || (evCasa(c) !== null && evCasa(c) >= LIMITE_VALOR)));
+  && (!soBemPagas || (estrelasCenario(c) || 0) >= 4));
+let ordenarEstrelas = false;
 const tituloFaixa = nome => nome.charAt(0) + nome.slice(1).toLowerCase();
 const nomeDia = i => (i === 0 ? "Hoje " : "Amanha ") + dataBR(DADOS.dias[i].data);
 const brl = x => "R$ " + x.toFixed(2).replace(".", ",");
@@ -736,7 +787,9 @@ function render() {
   }, l === null ? "Todas" : l));
   if (typeof aba === "number" || aba === "brasil") if (oddsCasaSalvas()) chips.unshift(el("button", {
     class: "chip", "aria-pressed": String(soBemPagas), onclick: () => { soBemPagas = !soBemPagas; render(); }
-  }, "Só com valor"));
+  }, "4★ ou mais"), el("button", {
+    class: "chip", "aria-pressed": String(ordenarEstrelas), onclick: () => { ordenarEstrelas = !ordenarEstrelas; render(); }
+  }, "Ordenar por ★"));
   document.getElementById("chips").replaceChildren(...chips);
 
   const main = document.getElementById("conteudo");
@@ -755,6 +808,7 @@ function renderFaixas(main, faixas) {
   let total = 0;
   for (const fx of faixas) {
     const itens = visiveis(fx.itens);
+    if (ordenarEstrelas) itens.sort((a, b) => (estrelasCenario(b) || 0) - (estrelasCenario(a) || 0) || b.prob - a.prob);
     main.append(el("h2", { class: "faixa faixa-" + fx.nome.split(" ")[0].toLowerCase() }, tituloFaixa(fx.nome)),
                 el("p", { class: "sub" }, "odd justa " + fx.min.toFixed(2) + " a " + fx.max.toFixed(2)));
     if (!itens.length) main.append(el("p", { class: "sub" }, fx.itens.length ? "Os jogos dessa faixa ja comecaram." : "Nada nessa faixa."));
@@ -828,7 +882,11 @@ function renderCombo() {
       ? "Com " + combo.size + " jogos a chance cai rapido: basta um errar. A margem da casa e cobrada em cada jogo."
       : "Vale a pena so se a casa pagar acima da odd justa. A margem da casa e cobrada em cada jogo."),
     oddCombinadaCasa() ? el("small", {}, el("b", {}, "Odd na casa ≈ " + oddCombinadaCasa().toFixed(2).replace(".", ",")),
-      " (multiplicando as odds da lista colada)") : null);
+      " (multiplicando as odds da BBS)", mediaEstrelasCombo() ? " · média " + mediaEstrelasCombo() + " ★" : "") : null);
+}
+function mediaEstrelasCombo() {
+  const n = [...combo.values()].map(estrelasCenario).filter(x => x !== null);
+  return n.length ? (n.reduce((a, b) => a + b, 0) / n.length).toFixed(1).replace(".", ",") : null;
 }
 function oddCombinadaCasa() {
   const odds = [...combo.values()].map(oddCasa);
@@ -1063,7 +1121,7 @@ function calcular(c) {
       if (oddAposta === null || oddAposta <= 1) return erro("Digite a odd oferecida pra dupla chance.");
     }
   }
-  const edge = prob - justa, nota = estrelas(edge);
+  const edge = prob - justa, nota = estrelasCasa(prob * oddAposta - 1, oddAposta);
   const bancaTxt = document.getElementById("banca").value;
   guardar("apostagol_banca", bancaTxt);
   const bancaR = lerNumero(bancaTxt);
@@ -1088,7 +1146,7 @@ function calcular(c) {
       el("dt", {}, "Margem da casa"), el("dd", {}, pct(r.margem)),
       el("dt", {}, "Chance justa da casa"), el("dd", {}, pct(justa)),
       el("dt", {}, "Edge"), el("dd", {}, (edge * 100).toFixed(1) + " p.p."),
-      el("dt", {}, "Nota"), el("dd", { class: "estrelas", "aria-label": nota + " de 6 estrelas" }, "★".repeat(nota) + "☆".repeat(6 - nota))),
+      el("dt", {}, "Nota"), el("dd", { class: "estrelas", "aria-label": nota + " de 5 estrelas" }, estrelasTxt(nota))),
     avisos.map(([tipo, txt]) => el("div", { class: "aviso " + tipo }, txt)),
     el("p", { class: "sub", style: "margin-top:10px" }, "Leitura organizada dos dados, nao garantia de resultado.")));
   saida.scrollIntoView({ behavior: "smooth", block: "start" });
